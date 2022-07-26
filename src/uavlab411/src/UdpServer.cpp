@@ -304,6 +304,7 @@ bool navigate_to_local(uavlink_msg_waypoint_t point, float tolerance)
 	navigate.request.z = point.targetZ;
 	navigate.request.speed = 0;
 	navigate.request.nav_mode = 3;
+	navigate.request.tolerance = tolerance;
 
 	if (nav_to_waypoint_srv.call(navigate))
 		ROS_INFO("CALLED NAV SRV!");
@@ -340,6 +341,7 @@ bool navigate_to_GPS(uavlink_msg_waypoint_t point, float tolerance)
 	msg.request.lon = point.targetY;
 	msg.request.alt = point.targetZ;
 	msg.request.speed = 0.8;
+	msg.request.tolerance = tolerance;
 
 	if (nav_to_GPS_srv.call(msg))
 		ROS_INFO("CALLED SERVICE NAVIGATE GPS!");
