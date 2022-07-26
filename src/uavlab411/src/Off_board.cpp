@@ -34,6 +34,7 @@ OffBoard::OffBoard()
     Kd_vx = 0;
     // Default state hold mode
     _curMode = Hold;
+    tolerance = 0.1;
     // Initial value
     update_frequency = 35.0;
     _navMessage.coordinate_frame = PositionTarget::FRAME_BODY_NED;
