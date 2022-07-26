@@ -84,7 +84,7 @@ void handle_local_position(const geometry_msgs::PoseStamped& msg)
     range.range = z_barometer;
     range.field_of_view = 0.5;
     range.radiation_type = 0;
-    pub_baro.publish(range);
+    // pub_baro.publish(range);
     // tf::Quaternion q(
     //     msg.pose.orientation.x,
     //     msg.pose.orientation.y,

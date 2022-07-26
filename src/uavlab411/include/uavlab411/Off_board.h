@@ -99,6 +99,8 @@ private:
     float update_frequency;
     // z map when booting UAV
     double z_map;
+    // tolerance for takeoff and navigate
+    float tolerance;
     // PID Controller parameter
     float Kp_yaw, Kd_yaw, Ki_yaw, Ei_yaw, Error_yaw;
     float Kp_vx, Kd_vx, Ki_vx, Ei_vx, Error_vx;

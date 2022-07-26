@@ -159,7 +159,7 @@ void OffBoard::publish_point()
     case NavGlobal:
         realDistance = getNavigateSetpoint(ros::Time::now(), this->speed, nav_sp);
         pub_globalMessage.publish(nav_sp);
-        if (realDistance < 0.1)
+        if (realDistance < tolerance)
         {
             getCurrentPosition();
             _curMode = Hold;
@@ -172,8 +172,7 @@ void OffBoard::publish_point()
     case Takeoff: // Takeoff mode
         if (!TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout))
         {
-            if (_uavpose.pose.position.z > _pointMessage.pose.position.z - 0.1 &&
-                _uavpose.pose.position.z < _pointMessage.pose.position.z + 0.1)
+            if (_uavpose.pose.position.z > _pointMessage.pose.position.z - tolerance - z_map)
             {
                 getCurrentPosition();
                 _curMode = Hold;
@@ -251,7 +250,7 @@ void OffBoard::navToWayPointV2(float x, float y, float z, int rate)
     _navMessage.velocity.x = Vx;
     _navMessage.velocity.y = Vy;
     // _navMessage.position.z = z_map + z;
-    if (abs(e_x) < 0.1 && abs(e_y) < 0.1)
+    if (sqrt(e_x * e_x + e_y * e_y) < tolerance)
     {
         getCurrentPosition();
         _pointMessage.pose.position.z = z_map + z;
@@ -285,6 +284,7 @@ bool OffBoard::Navigate(uavlab411::Navigate::Request &req, uavlab411::Navigate::
 {
     if (!TIMEOUT(_uavpose, _uavpose_timemout) && !TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout) && checkState())
     {
+        tolerance = req.tolerance;
         switch (req.nav_mode)
         {
         case NavYaw:
@@ -350,6 +350,7 @@ bool OffBoard::NavigateGlobal(uavlab411::NavigateGlobal::Request &req,
 {
     if (checkState())
     {
+        tolerance = req.tolerance;
         _startGPoint.x = _globalPos.latitude;
         _startGPoint.y = _globalPos.longitude;
         _startGPoint.z = _uavpose_local_position.pose.position.z;
@@ -384,6 +385,7 @@ bool OffBoard::TakeoffSrv(uavlab411::Takeoff::Request &req, uavlab411::Takeoff::
     ROS_INFO("TAKE OFF MODE");
     publish_point();
     setpoint_timer.start();
+    tolerance = req.tolerance;
     if (!TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout))
     {
         offboardAndArm();
@@ -518,7 +520,6 @@ float OffBoard::PidControl_yaw(float x_cur, float y_cur, float x_goal, float y_g
     w = Kp_yaw * Error_yaw + Ki_yaw * Ei_yaw + Kd_yaw * Ed_yaw;
     w = w > 2 ? 2 : w < -2 ? -2
                            : w;
-
     return w;
 }
 

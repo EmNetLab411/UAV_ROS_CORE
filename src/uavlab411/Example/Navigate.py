@@ -15,7 +15,7 @@ takeoff_srv = rospy.ServiceProxy('uavlab411/takeoff', srv.Takeoff)
 land_srv = rospy.ServiceProxy('uavlab411/land', Trigger)
 
 def navigate_wait(x, y, z, nav_mode, tolerance=0.15):
-    res = navigate_to(x=x, y=y, z=z, nav_mode=nav_mode)
+    res = navigate_to(x=x, y=y, z=z, nav_mode=nav_mode,tolerance = tolerance)
     if not res.success:
         return res
 
@@ -31,7 +31,7 @@ def navigate_wait(x, y, z, nav_mode, tolerance=0.15):
 
 
 def takeoff(z):
-    res = takeoff_srv(z=z)
+    res = takeoff_srv(z=z,tolerance = 0.1)
     if not res.success:
         return res
     wait_for_telemetry()
@@ -54,8 +54,8 @@ rospy.sleep(2)
 for i in wps:
     wait_for_telemetry()
     print("navigate to wp " + str(i))
-    navigate_wait(x=i[0], y=i[1], z=1, nav_mode=3,
+    navigate_wait(x=i[0], y=i[1], z=1.5, nav_mode=3,
                   tolerance=0.2)
-    rospy.sleep(4)
+    rospy.sleep(1)
 
 land_srv()
