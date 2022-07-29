@@ -6,6 +6,7 @@ OffBoard::OffBoard()
     sub_uavpose = nh.subscribe<geometry_msgs::PoseStamped>("uavlab411/uavpose", 1, &OffBoard::handlePoses, this);
     sub_local_position = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, &OffBoard::handleLocalPosition, this);
     sub_global_position = nh.subscribe<sensor_msgs::NavSatFix>("/mavros/global_position/global", 1, &OffBoard::handleGlobalPosition, this);
+    sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, &OffBoard::handleImuData, this);
 
     pub_navMessage = nh.advertise<mavros_msgs::PositionTarget>("mavros/setpoint_raw/local", 20);
     pub_pointMessage = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 20);
@@ -63,6 +64,17 @@ void OffBoard::handleGlobalPosition(const sensor_msgs::NavSatFix::ConstPtr &msg)
     _globalPos = *msg;
 }
 
+void OffBoard::handleImuData(const sensor_msgs::Imu::ConstPtr &msg)
+{
+    tf::Quaternion q(
+        msg->orientation.x,
+        msg->orientation.y,
+        msg->orientation.z,
+        msg->orientation.w);
+    tf::Matrix3x3 m(q);
+    double roll, pitch;
+    m.getRPY(roll, pitch, yaw_compass);
+}
 void OffBoard::offboardAndArm()
 {
     ros::Rate r(10);
@@ -158,14 +170,8 @@ void OffBoard::publish_point()
         }
         break;
     case NavGlobal:
-        realDistance = getNavigateSetpoint(ros::Time::now(), this->speed, nav_sp);
-        pub_globalMessage.publish(nav_sp);
-        if (realDistance < tolerance)
-        {
-            getCurrentPosition();
-            _curMode = Hold;
-            ROS_INFO("Switch to HOLD MODE!");
-        }
+        navToGPSPoint(ros::Time::now(), this->speed);
+        pub_navMessage.publish(_navMessage);
         break;
     case Hold: // Hold mode
         holdMode();
@@ -260,6 +266,31 @@ void OffBoard::navToWayPointV2(float x, float y, float z, int rate)
     }
 }
 
+void OffBoard::navToGPSPoint(const ros::Time &stamp, float speed)
+{
+    double x_src = _globalPos.latitude / 180 * PI;
+    double y_src = _globalPos.longitude / 180 * PI;
+    double x_dst = _endGPoint.x / 180 * PI;
+    double y_dst = _endGPoint.y / 180 * PI;
+    double y = sin(y_dst - y_src) * cos(x_src);
+    double x = cos(x_src) * sin(x_dst) - sin(x_src) * cos(x_src) * cos(y_dst - y_src);
+    double azimuth = PI / 2 - atan2(y, x) - yaw_compass;
+    azimuth = azimuth > PI ? azimuth - PI : azimuth < -PI ? azimuth + PI
+                                                          : azimuth;
+    double distance = hypot(_globalPos.latitude - _endGPoint.x, _globalPos.longitude - _endGPoint.y) * 1.113195e5;
+    _navMessage.header.stamp = ros::Time::now();
+    float v = distance * Kp_vx > speed ? speed : distance *Kp_vx;
+    _navMessage.velocity.x = v * cos(azimuth) ;
+    _navMessage.velocity.y = v * sin(azimuth) ;
+    if (distance < tolerance)
+    {
+        getCurrentPosition();
+        _pointMessage.pose.position.z = z_map + _endGPoint.z;
+        _curMode = Hold;
+        ROS_INFO("Switch to HOLD MODE!");
+    }
+}
+
 bool OffBoard::GetTelemetry(uavlab411::Telemetry::Request &req, uavlab411::Telemetry::Response &res)
 {
     res.x = NAN;
@@ -285,7 +316,7 @@ bool OffBoard::Navigate(uavlab411::Navigate::Request &req, uavlab411::Navigate::
 {
     if (!TIMEOUT(_uavpose, _uavpose_timemout) && !TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout) && checkState())
     {
-        tolerance = req.tolerance;
+        tolerance = req.tolerance == 0 ? tolerance : req.tolerance;
         switch (req.nav_mode)
         {
         case NavYaw:
@@ -351,27 +382,16 @@ bool OffBoard::NavigateGlobal(uavlab411::NavigateGlobal::Request &req,
 {
     if (checkState())
     {
-        tolerance = req.tolerance;
-        _startGPoint.x = _globalPos.latitude;
-        _startGPoint.y = _globalPos.longitude;
-        _startGPoint.z = _uavpose_local_position.pose.position.z;
-
+        tolerance = req.tolerance == 0 ? tolerance : req.tolerance;
         _endGPoint.x = req.lat;
         _endGPoint.y = req.lon;
         _endGPoint.z = req.alt;
         speed = req.speed;
         getTime = ros::Time::now();
         _curMode = NavGlobal;
-        nav_sp.coordinate_frame = 6;
-        nav_sp.type_mask = PositionTarget::IGNORE_VX +
-                           PositionTarget::IGNORE_VY +
-                           PositionTarget::IGNORE_VZ +
-                           PositionTarget::IGNORE_AFX +
-                           PositionTarget::IGNORE_AFY +
-                           PositionTarget::IGNORE_AFZ +
-                           PositionTarget::IGNORE_YAW;
         res.success = true;
         res.message = "Navigate to GPS point";
+        ROS_INFO("NAV TO GPS WAYPOINT WITHOUT YAW CHANGED");
     }
     else
     {
@@ -386,7 +406,7 @@ bool OffBoard::TakeoffSrv(uavlab411::Takeoff::Request &req, uavlab411::Takeoff::
     ROS_INFO("TAKE OFF MODE");
     publish_point();
     setpoint_timer.start();
-    tolerance = req.tolerance;
+    tolerance = req.tolerance == 0 ? tolerance : req.tolerance;
     if (!TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout))
     {
         offboardAndArm();
@@ -565,25 +585,8 @@ bool OffBoard::checkState()
     }
 }
 
-float OffBoard::getNavigateSetpoint(const ros::Time &stamp, float speed, mavros_msgs::GlobalPositionTarget &nav_setpoint)
+void OffBoard::get_Distance_Azimuth(const geometry_msgs::Point &from, const geometry_msgs::Point &to)
 {
-    float distance = getDistance(_startGPoint, _endGPoint);
-    float time = distance / speed;
-    float passed = std::min((stamp - getTime).toSec() / time, 1.0);
-
-    nav_setpoint.latitude = _startGPoint.x + (_endGPoint.x - _startGPoint.x) * passed;
-    nav_setpoint.longitude = _startGPoint.y + (_endGPoint.y - _startGPoint.y) * passed;
-    nav_setpoint.altitude = _startGPoint.z + (_endGPoint.z - _startGPoint.z) * passed;
-
-    geometry_msgs::Point curPos;
-    curPos.x = _globalPos.latitude;
-    curPos.y = _globalPos.longitude;
-    return getDistance(curPos, _endGPoint);
-}
-
-float getDistance(const geometry_msgs::Point &from, const geometry_msgs::Point &to)
-{
-    return hypot(from.x - to.x, from.y - to.y) * 1.113195e5;
 }
 
 int main(int argc, char **argv)

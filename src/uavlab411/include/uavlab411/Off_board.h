@@ -1,10 +1,12 @@
 #include <ros/ros.h>
+#include <tf/transform_broadcaster.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Point.h>
 #include <std_srvs/Trigger.h>
 #include <sensor_msgs/Range.h>
 #include <sensor_msgs/NavSatFix.h>
+#include <sensor_msgs/Imu.h>
 #include <math.h>
 #include <algorithm>
 
@@ -26,7 +28,7 @@ using namespace mavros_msgs;
 using namespace std;
 
 #define TIMEOUT(msg, timeout) (msg.header.stamp.isZero() || (ros::Time::now() - msg.header.stamp > timeout))
-
+#define PI atan(1) * 4
 enum Mode
 {
     Takeoff = 0,
@@ -53,7 +55,7 @@ private:
     ros::Publisher pub_pointMessage, pub_globalMessage;
     // Subscriber
     ros::Subscriber sub_state;
-    ros::Subscriber sub_uavpose, sub_local_position, sub_global_position;
+    ros::Subscriber sub_uavpose, sub_local_position, sub_global_position, sub_imu_data;
 
     // Service
     ros::ServiceClient srv_arming, srv_set_mode;
@@ -65,12 +67,14 @@ private:
     void handlePoses(const geometry_msgs::PoseStamped::ConstPtr &msg);
     void handleLocalPosition(const geometry_msgs::PoseStamped::ConstPtr &msg);
     void handleGlobalPosition(const sensor_msgs::NavSatFix::ConstPtr &msg);
+    void handleImuData (const sensor_msgs::Imu::ConstPtr &msg);
 
     // Main function
     void offboardAndArm();
     void publish_point();
     void navToWaypoint(float x, float y, float z, int rate);
     void navToWayPointV2(float x, float y, float z, int rate);
+    void navToGPSPoint(const ros::Time &stamp, float speed);
     void holdMode();
     void getCurrentPosition();
     void takeOffMode(float z);
@@ -87,29 +91,31 @@ private:
     mavros_msgs::State cur_state;
     mavros_msgs::PositionTarget _navMessage, _holdMessage;
     sensor_msgs::NavSatFix _globalPos;
-    geometry_msgs::Point _startGPoint, _endGPoint;
+    geometry_msgs::Point  _endGPoint;
     geometry_msgs::PoseStamped _setpoint, _pointMessage;
     geometry_msgs::PoseStamped _uavpose;
     geometry_msgs::PoseStamped _uavpose_local_position;
     geometry_msgs::Twist _cmdvel_msg;
-    mavros_msgs::GlobalPositionTarget nav_sp;
     ros::Duration _uavpose_timemout, _uavpose_local_position_timeout, _land_timeout;
     ros::Time getTime;
     Mode _curMode;
     float update_frequency;
     // z map when booting UAV
     double z_map;
+    // yaw compass
+    double yaw_compass;
     // tolerance for takeoff and navigate
     float tolerance;
     // PID Controller parameter
     float Kp_yaw, Kd_yaw, Ki_yaw, Ei_yaw, Error_yaw;
     float Kp_vx, Kd_vx, Ki_vx, Ei_vx, Error_vx;
-
+    //var in navigate local
     float targetX, targetY, targetZ, speed, realDistance;
+
     float PidControl_yaw(float x_cur, float y_cur, float x_goal, float y_goal, float alpha, float dt);
     float PidControl_vx(float x_cur, float y_cur, float x_goal, float y_goal, float dt);
     float Control_vz(float z_cur, float z_goal);
-    float getNavigateSetpoint(const ros::Time &stamp, float speed, mavros_msgs::GlobalPositionTarget &nav_setpoint);
+    
+    void get_Distance_Azimuth(const geometry_msgs::Point &from, const geometry_msgs::Point &to);
 };
 
-float getDistance(const geometry_msgs::Point &from, const geometry_msgs::Point &to);
