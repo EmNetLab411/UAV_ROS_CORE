@@ -5,13 +5,14 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <thread>
+#include <tf/transform_broadcaster.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/BatteryState.h>
+#include <sensor_msgs/Imu.h>
 #include <std_msgs/String.h>
 #include <std_srvs/Trigger.h>
 #include <geometry_msgs/PoseStamped.h>
-
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/ManualControl.h>
 #include <mavros_msgs/CommandBool.h>
@@ -126,9 +127,10 @@ typedef struct __uavlink_global_position_int_t
 	int16_t vx;
 	int16_t vy;
 	int16_t vz;
+	int16_t yaw;
 } uavlink_global_position_int_t;
 #define UAVLINK_MSG_ID_GLOBAL_POSITION_INT 2
-#define UAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN 24
+#define UAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN 26
 
 static inline uint16_t uavlink_global_position_encode(uavlink_message_t *msg, const uavlink_global_position_int_t *uavlink_global_position)
 {
@@ -139,6 +141,7 @@ static inline uint16_t uavlink_global_position_encode(uavlink_message_t *msg, co
 	packet.vx = uavlink_global_position->vx;
 	packet.vy = uavlink_global_position->vy;
 	packet.vz = uavlink_global_position->vz;
+	packet.yaw = uavlink_global_position->yaw;
 	memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, UAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN);
 	msg->msgid = UAVLINK_MSG_ID_GLOBAL_POSITION_INT;
 	msg->len = UAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN;
