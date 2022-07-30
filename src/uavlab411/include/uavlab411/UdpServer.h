@@ -37,6 +37,7 @@ using std::string;
 #define UAVLINK_CMD_FLYTO 25
 #define UAVLINK_CMD_SET_MODE 26
 
+#define PI 3.14159265358979323846 
 #define MAX_VOLTAGE 16
 #define MIN_VOLTAGE 14
 #define TIMEOUT(msg, timeout) (msg.header.stamp.isZero() || (ros::Time::now() - msg.header.stamp > timeout))

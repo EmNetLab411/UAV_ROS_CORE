@@ -21,7 +21,7 @@ ros::Duration state_timeout;
 ros::ServiceClient takeoff_srv, nav_to_waypoint_srv, land_srv, nav_to_GPS_srv;
 
 // ROS Message
-uavlab411::control_robot_msg msg_robot;        // msg control robot
+uavlab411::control_robot_msg msg_robot;		   // msg control robot
 mavros_msgs::State state;					   // State robot
 mavros_msgs::ManualControl manual_control_msg; // Manual control msg
 sensor_msgs::NavSatFix global_msg;			   // message from topic "/mavros/global_position/global"
@@ -67,8 +67,6 @@ void handle_cmd_set_mode(int mode)
 		}
 	}
 }
-
-
 
 void handle_cmd_arm_disarm(bool flag)
 {
@@ -189,7 +187,7 @@ void handle_command(uavlink_message_t message)
 void handle_msg_control_robot(uavlink_message_t message)
 {
 	uavlink_control_robot_t robot_msg_rev;
-	uavlink_control_robot_decode(&message,&robot_msg_rev);
+	uavlink_control_robot_decode(&message, &robot_msg_rev);
 	msg_robot.step1 = robot_msg_rev.step1;
 	msg_robot.step2 = robot_msg_rev.step2;
 	msg_robot.step3 = robot_msg_rev.step3;
@@ -252,7 +250,8 @@ void handleLocalPosition(const nav_msgs::Odometry &o)
 	global_pos.alt = (int16_t)(o.pose.pose.position.z * 100);
 	global_pos.lat = (int32_t)(global_msg.latitude * 10000000);
 	global_pos.lon = (int32_t)(global_msg.longitude * 10000000);
-	global_pos.yaw = (int16_t)(yaw_compass * 1000);
+	global_pos.yaw = (int16_t)(yaw_compass * 180 / PI);
+	global_pos.yaw = 450 - global_pos.yaw > 360 ? 90 - global_pos.yaw : 450 - global_pos.yaw;
 	uavlink_message_t msg;
 	uavlink_global_position_encode(&msg, &global_pos);
 	char buf[300];
@@ -293,14 +292,14 @@ void handle_Battery_State(const sensor_msgs::BatteryState &bat)
 
 void handleImuData(const sensor_msgs::Imu::ConstPtr &msg)
 {
-    tf::Quaternion q(
-        msg->orientation.x,
-        msg->orientation.y,
-        msg->orientation.z,
-        msg->orientation.w);
-    tf::Matrix3x3 m(q);
-    double roll, pitch;
-    m.getRPY(roll, pitch, yaw_compass);
+	tf::Quaternion q(
+		msg->orientation.x,
+		msg->orientation.y,
+		msg->orientation.z,
+		msg->orientation.w);
+	tf::Matrix3x3 m(q);
+	double roll, pitch;
+	m.getRPY(roll, pitch, yaw_compass);
 }
 
 void init()
@@ -511,7 +510,7 @@ int main(int argc, char **argv)
 	auto local_position_sub = nh.subscribe("/mavros/global_position/local", 1, &handleLocalPosition);
 	auto battery_sub = nh.subscribe("/mavros/battery", 1, &handle_Battery_State);
 	auto uavpose_sub = nh.subscribe("uavlab411/uavpose", 1, &handleUavPose);
-    sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, handleImuData);
+	sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, handleImuData);
 
 	// Service client
 	set_mode = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");

@@ -17,7 +17,7 @@
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_broadcaster.h>
 
-#define PI atan(1) * 4
+#define PI 3.14159265358979323846 
 #define TIMEOUT(msg, timeout) (msg.header.stamp.isZero() || (ros::Time::now() - msg.header.stamp > timeout))
 void handle_main_optical_flow_pose(const geometry_msgs::PoseWithCovarianceStamped &);
 void handle_local_position(const geometry_msgs::PoseStamped &);

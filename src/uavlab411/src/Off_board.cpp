@@ -275,13 +275,14 @@ void OffBoard::navToGPSPoint(const ros::Time &stamp, float speed)
     double y = sin(y_dst - y_src) * cos(x_src);
     double x = cos(x_src) * sin(x_dst) - sin(x_src) * cos(x_src) * cos(y_dst - y_src);
     double azimuth = PI / 2 - atan2(y, x) - yaw_compass;
-    azimuth = azimuth > PI ? azimuth - PI : azimuth < -PI ? azimuth + PI
+    azimuth = azimuth > PI ? azimuth - 2*PI : azimuth < -PI ? azimuth + 2*PI
                                                           : azimuth;
     double distance = hypot(_globalPos.latitude - _endGPoint.x, _globalPos.longitude - _endGPoint.y) * 1.113195e5;
     _navMessage.header.stamp = ros::Time::now();
-    float v = distance * Kp_vx > speed ? speed : distance *Kp_vx;
+    double v = distance * Kp_vx > speed ? speed : distance *Kp_vx;
     _navMessage.velocity.x = v * cos(azimuth) ;
     _navMessage.velocity.y = v * sin(azimuth) ;
+    
     if (distance < tolerance)
     {
         getCurrentPosition();
@@ -386,6 +387,13 @@ bool OffBoard::NavigateGlobal(uavlab411::NavigateGlobal::Request &req,
         _endGPoint.x = req.lat;
         _endGPoint.y = req.lon;
         _endGPoint.z = req.alt;
+        _navMessage.type_mask = PositionTarget::IGNORE_PX +
+                                PositionTarget::IGNORE_PY +
+                                PositionTarget::IGNORE_PZ +
+                                PositionTarget::IGNORE_AFX +
+                                PositionTarget::IGNORE_AFY +
+                                PositionTarget::IGNORE_AFZ +
+                                PositionTarget::IGNORE_YAW;
         speed = req.speed;
         getTime = ros::Time::now();
         _curMode = NavGlobal;
