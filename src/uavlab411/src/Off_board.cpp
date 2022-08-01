@@ -272,8 +272,8 @@ void OffBoard::navToGPSPoint(const ros::Time &stamp, float speed)
     double y_src = _globalPos.longitude / 180 * PI;
     double x_dst = _endGPoint.x / 180 * PI;
     double y_dst = _endGPoint.y / 180 * PI;
-    double y = sin(y_dst - y_src) * cos(x_src);
-    double x = cos(x_src) * sin(x_dst) - sin(x_src) * cos(x_src) * cos(y_dst - y_src);
+    double y = sin(y_dst - y_src) * cos(x_dst);
+    double x = cos(x_src) * sin(x_dst) - sin(x_src) * cos(x_dst) * cos(y_dst - y_src);
     double azimuth = PI / 2 - atan2(y, x) - yaw_compass;
     azimuth = azimuth > PI ? azimuth - 2*PI : azimuth < -PI ? azimuth + 2*PI
                                                           : azimuth;
