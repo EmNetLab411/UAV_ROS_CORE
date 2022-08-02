@@ -109,6 +109,7 @@ private:
     // PID Controller parameter
     float Kp_yaw, Kd_yaw, Ki_yaw, Ei_yaw, Error_yaw;
     float Kp_vx, Kd_vx, Ki_vx, Ei_vx, Error_vx;
+    float Kp_vz, Kd_vz, Ki_vz;
     //var in navigate local
     float targetX, targetY, targetZ, speed, realDistance;
 

@@ -7,8 +7,9 @@ socklen_t android_addr_size = sizeof(android_addr);
 // waypoints vector
 std::vector<uavlink_msg_waypoint_t> waypoint_indoor_vector;
 std::vector<uavlink_msg_waypoint_t> waypoint_GPS_vector;
-bool check_busy;
+bool check_busy_fly_GPS_point;
 bool check_take_off;
+uint32_t lastest_id_waypoint = 0;
 // uavpose
 geometry_msgs::PoseStamped uavpose_msg;
 ros::Duration _uavpose_timemout = ros::Duration(2.0);
@@ -127,6 +128,7 @@ void handle_cmd_land()
 	{
 		ROS_INFO("CALLED LAND SRV!");
 		check_take_off = false;
+		check_busy_fly_GPS_point = false;
 	}
 	else
 	{
@@ -145,7 +147,7 @@ void handle_cmd_flyto(bool allwp, int wpid, int type)
 		int type_fly = type;
 		ROS_INFO("WP INDOOR LENGTH: %ld", waypoint_indoor_vector.size());
 		ROS_INFO("WP OUTDOOR LENGTH: %ld", waypoint_GPS_vector.size());
-		if (!check_busy)
+		if (!check_busy_fly_GPS_point)
 		{
 			ROS_INFO("Start flying to waypoints in mode %s", type == 0 ? "indoor" : "outdoor");
 			std::thread flyThread(&navigate_points_vector, &type_fly);
@@ -209,13 +211,20 @@ void handle_msg_manual_control(uavlink_message_t message)
 // Handle waupoint message
 void handle_msg_waypoint(uavlink_message_t message)
 {
+	
 	uavlink_msg_waypoint_t waypoint;
 	uavlink_waypoint_decode(&message, &waypoint);
 	// ROS_INFO("msg rev:x= %f,y=%f,z=%f",waypoint.targetX,waypoint.targetY,waypoint.targetZ);
-	if (waypoint.type == 0)
-		waypoint_indoor_vector.push_back(waypoint);
+	if (waypoint.type == 0) waypoint_indoor_vector.push_back(waypoint);
 	else if (waypoint.type == 1)
-		waypoint_GPS_vector.push_back(waypoint);
+	{
+		if (waypoint.wpId > lastest_id_waypoint)
+		{
+			waypoint_GPS_vector.push_back(waypoint);
+			lastest_id_waypoint = waypoint.wpId;
+		}
+	}
+		
 	else
 		ROS_ERROR("Error: type of message waypoint received is invalid ! : type is %d", waypoint.type);
 }
@@ -385,7 +394,7 @@ bool navigate_to_GPS(uavlink_msg_waypoint_t point, float tolerance)
 void navigate_points_vector(void *type)
 {
 	int type_fly = *(int *)type;
-	check_busy = true;
+	check_busy_fly_GPS_point = true;
 	ROS_INFO("Type fly: %d", type_fly);
 	if (type_fly == 0)
 	{
@@ -403,7 +412,7 @@ void navigate_points_vector(void *type)
 		while (!waypoint_GPS_vector.empty())
 		{
 			ROS_INFO("fly to point lat: %f lon:%f z:%f", waypoint_GPS_vector[0].targetX, waypoint_GPS_vector[0].targetY, waypoint_GPS_vector[0].targetZ);
-			if (navigate_to_GPS(waypoint_GPS_vector[0], 0.1))
+			if (navigate_to_GPS(waypoint_GPS_vector[0], 0.3))
 			{
 				waypoint_GPS_vector.erase(waypoint_GPS_vector.begin());
 			}
@@ -414,7 +423,7 @@ void navigate_points_vector(void *type)
 		ROS_ERROR("Error: invalid type fly : %d", type_fly);
 	}
 
-	check_busy = false;
+	check_busy_fly_GPS_point = false;
 }
 
 int createSocket(int port)

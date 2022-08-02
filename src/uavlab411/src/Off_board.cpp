@@ -29,10 +29,11 @@ OffBoard::OffBoard()
     Kp_yaw = 1;
     Ki_yaw = 0.2;
     Kd_yaw = 0;
-    targetZ = 0;
+    // targetZ = 0;
     Kp_vx = 0.5;
     Ki_vx = 0.01;
     Kd_vx = 0;
+    Kp_vz = 1;
     // Default state hold mode
     _curMode = Hold;
     tolerance = 0.1;
@@ -275,14 +276,15 @@ void OffBoard::navToGPSPoint(const ros::Time &stamp, float speed)
     double y = sin(y_dst - y_src) * cos(x_dst);
     double x = cos(x_src) * sin(x_dst) - sin(x_src) * cos(x_dst) * cos(y_dst - y_src);
     double azimuth = PI / 2 - atan2(y, x) - yaw_compass;
-    azimuth = azimuth > PI ? azimuth - 2*PI : azimuth < -PI ? azimuth + 2*PI
-                                                          : azimuth;
+    azimuth = azimuth > PI ? azimuth - 2 * PI : azimuth < -PI ? azimuth + 2 * PI
+                                                              : azimuth;
     double distance = hypot(_globalPos.latitude - _endGPoint.x, _globalPos.longitude - _endGPoint.y) * 1.113195e5;
     _navMessage.header.stamp = ros::Time::now();
-    double v = distance * Kp_vx > speed ? speed : distance *Kp_vx;
-    _navMessage.velocity.x = v * cos(azimuth) ;
-    _navMessage.velocity.y = v * sin(azimuth) ;
-    
+    double v = distance * Kp_vx > speed ? speed : distance * Kp_vx;
+    _navMessage.velocity.x = v * cos(azimuth);
+    _navMessage.velocity.y = v * sin(azimuth);
+    _navMessage.velocity.z = v* (_endGPoint.z - _uavpose_local_position.pose.position.z + z_map)/distance * Kp_vz;
+
     if (distance < tolerance)
     {
         getCurrentPosition();
@@ -494,7 +496,7 @@ bool OffBoard::TuningPID(uavlab411::PidTuning::Request &req, uavlab411::PidTunin
 
         res.success = true;
         break;
-    case 1: // Tuning velocity PID
+    case 1: // Tuning velocity PID x
         // Response last PID Param
         res.Kp = Kp_vx;
         res.Ki = Ki_vx;
@@ -504,6 +506,17 @@ bool OffBoard::TuningPID(uavlab411::PidTuning::Request &req, uavlab411::PidTunin
         Ki_vx = req.Ki;
         Kd_vx = req.Kd;
 
+        res.success = true;
+        break;
+    case 2: // Tuning velocity PID z
+        // Response last PID Param
+        res.Kp = Kp_vz;
+        res.Ki = 0;
+        res.Kd = 0;
+        // New PID param
+        Kp_vz = req.Kp;
+        Ki_vz = 0;
+        Kd_vz = 0;
         res.success = true;
         break;
     default:
