@@ -133,7 +133,7 @@ typedef struct __uavlink_global_position_int_t
 	int16_t yaw;
 } uavlink_global_position_int_t;
 #define UAVLINK_MSG_ID_GLOBAL_POSITION_INT 2
-#define UAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN 26
+#define UAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN 18
 
 static inline uint16_t uavlink_global_position_encode(uavlink_message_t *msg, const uavlink_global_position_int_t *uavlink_global_position)
 {
@@ -167,7 +167,7 @@ typedef struct __uavlink_local_position_int_t
 	int16_t vz;
 } uavlink_local_position_int_t;
 #define UAVLINK_MSG_ID_LOCAL_POSITION_INT 3
-#define UAVLINK_MSG_ID_LOCAL_POSITION_INT_LEN 24
+#define UAVLINK_MSG_ID_LOCAL_POSITION_INT_LEN 12
 
 static inline uint16_t uavlink_local_position_encode(uavlink_message_t *msg, const uavlink_local_position_int_t *uavlink_local_position)
 {

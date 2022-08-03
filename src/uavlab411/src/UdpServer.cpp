@@ -248,7 +248,7 @@ void handleState(const mavros_msgs::State &s)
 // Handle Local Position from UAV
 void handleLocalPosition(const nav_msgs::Odometry &o)
 {
-	ros::Rate r(2);
+	ros::Rate r(10);
 	uavlink_global_position_int_t global_pos;
 	global_pos.vx = (int16_t)(o.twist.twist.linear.x * 100);
 	global_pos.vy = (int16_t)(o.twist.twist.linear.y * 100);
@@ -276,7 +276,7 @@ void handleGlobalPosition(const sensor_msgs::NavSatFix &n)
 // Handle sensor data from node sensor
 void handleSensorData(const uavlab411::data_sensor_msg &data_from_node)
 {
-	ros::Rate r(2);
+	
 	uavlink_msg_sensor_data_t data;
 	char buf[300];
 	data.id = data_from_node.id;
@@ -285,12 +285,12 @@ void handleSensorData(const uavlab411::data_sensor_msg &data_from_node)
 	data.temperature = (int16_t)(data_from_node.temp*100);
 	data.humidity = (int16_t)(data_from_node.hum*100);
 	data.gas = (int16_t)(data_from_node.gas*100);
-	ROS_INFO("id: %d, lat: %d, lon: %d, temp: %d, hum: %d, gas: %d", data.id, data.lat, data.lon, data.temperature, data.humidity, data.gas);
 	uavlink_message_t msg_sensor;
 	uavlink_sensor_data_encode(&msg_sensor, &data);
 	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg_sensor);
 	writeSocketMessage(buf, len);
-	r.sleep();
+	ROS_INFO("id sensor: %d",data.id);
+	
 }
 void handleUavPose(const geometry_msgs::PoseStampedConstPtr &_uavpose)
 {
@@ -516,6 +516,7 @@ void writeSocketMessage(char buff[], int length)
 	if (check_receiver) // Need received first
 	{
 		int len = sendto(sockfd, (const char *)buff, length, 0, (const struct sockaddr *)&android_addr, android_addr_size);
+		// ROS_INFO("length: %d",len);
 	}
 }
 
