@@ -11,7 +11,7 @@ data.lat = 20.922833
 data.lon = 105.771217
 data.hum = 52.36
 data.temp = 42.36
-data.dust = 89.23
+data.gas = 89.23
 while not rospy.is_shutdown():
    pub.publish(data)
    r.sleep()

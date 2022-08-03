@@ -284,8 +284,8 @@ void handleSensorData(const uavlab411::data_sensor_msg &data_from_node)
 	data.lon = (int32_t)(data_from_node.lon*10000000);
 	data.temperature = (int16_t)(data_from_node.temp*100);
 	data.humidity = (int16_t)(data_from_node.hum*100);
-	data.dust = (int16_t)(data_from_node.dust*100);
-	ROS_INFO("id: %d, lat: %d, lon: %d, temp: %d, hum: %d, dust: %d", data.id, data.lat, data.lon, data.temperature, data.humidity, data.dust);
+	data.gas = (int16_t)(data_from_node.gas*100);
+	ROS_INFO("id: %d, lat: %d, lon: %d, temp: %d, hum: %d, gas: %d", data.id, data.lat, data.lon, data.temperature, data.humidity, data.gas);
 	uavlink_message_t msg_sensor;
 	uavlink_sensor_data_encode(&msg_sensor, &data);
 	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg_sensor);
