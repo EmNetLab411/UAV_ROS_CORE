@@ -7,10 +7,10 @@ OffBoard::OffBoard()
     sub_local_position = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, &OffBoard::handleLocalPosition, this);
     sub_global_position = nh.subscribe<sensor_msgs::NavSatFix>("/mavros/global_position/global", 1, &OffBoard::handleGlobalPosition, this);
     sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, &OffBoard::handleImuData, this);
+    sub_relative_alt = nh.subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt",1,&OffBoard::handleRelativeAlt, this);
 
     pub_navMessage = nh.advertise<mavros_msgs::PositionTarget>("mavros/setpoint_raw/local", 20);
     pub_pointMessage = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 20);
-    pub_globalMessage = nh.advertise<mavros_msgs::GlobalPositionTarget>("mavros/setpoint_raw/global", 20);
 
     srv_arming = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     srv_set_mode = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
@@ -64,7 +64,10 @@ void OffBoard::handleGlobalPosition(const sensor_msgs::NavSatFix::ConstPtr &msg)
 {
     _globalPos = *msg;
 }
-
+void OffBoard::handleRelativeAlt(const std_msgs::Float64::ConstPtr &msg)
+{
+    z_relative = msg->data;
+}
 void OffBoard::handleImuData(const sensor_msgs::Imu::ConstPtr &msg)
 {
     tf::Quaternion q(
@@ -109,7 +112,8 @@ void OffBoard::offboardAndArm()
 
     if (!cur_state.armed)
     {
-        z_map = _uavpose_local_position.pose.position.z;
+        // z_map = _uavpose_local_position.pose.position.z;
+        z_map = z_relative;
         ROS_INFO("ZMAP: %f", z_map);
         ros::Time start = ros::Time::now();
         ROS_INFO("arming");
@@ -180,7 +184,7 @@ void OffBoard::publish_point()
     case Takeoff: // Takeoff mode
         if (!TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout))
         {
-            if (_uavpose.pose.position.z > _pointMessage.pose.position.z - tolerance - z_map)
+            if (z_relative - z_map > _pointMessage.pose.position.z - tolerance )
             {
                 getCurrentPosition();
                 _curMode = Hold;
@@ -283,12 +287,12 @@ void OffBoard::navToGPSPoint(const ros::Time &stamp, float speed)
     double v = distance * Kp_vx > speed ? speed : distance * Kp_vx;
     _navMessage.velocity.x = v * cos(azimuth);
     _navMessage.velocity.y = v * sin(azimuth);
-    _navMessage.velocity.z = v* (_endGPoint.z - _uavpose_local_position.pose.position.z + z_map)/distance * Kp_vz;
-
-    if (distance < tolerance)
+    double distance_z = _endGPoint.z - z_relative + z_map;
+    _navMessage.velocity.z = v* distance_z/distance * Kp_vz;
+    
+    if (sqrt(distance*distance + distance_z*distance_z) < tolerance)
     {
         getCurrentPosition();
-        _pointMessage.pose.position.z = z_map + _endGPoint.z;
         _curMode = Hold;
         ROS_INFO("Switch to HOLD MODE!");
     }

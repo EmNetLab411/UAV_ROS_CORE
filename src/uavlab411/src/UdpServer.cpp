@@ -470,6 +470,7 @@ void readingSocketThread()
 				check_receiver = true;
 			uavlink_message_t message;
 			memcpy(&message, buff, bsize);
+			
 			switch (message.msgid)
 			{
 			case UAVLINK_MSG_ID_MANUAL_CONTROL:

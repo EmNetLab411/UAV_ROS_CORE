@@ -17,6 +17,7 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/PositionTarget.h>
 #include <mavros_msgs/GlobalPositionTarget.h>
+#include <std_msgs/Float64.h>
 
 #include <uavlab411/Navigate.h>
 #include <uavlab411/NavigateGlobal.h>
@@ -55,7 +56,7 @@ private:
     ros::Publisher pub_pointMessage, pub_globalMessage;
     // Subscriber
     ros::Subscriber sub_state;
-    ros::Subscriber sub_uavpose, sub_local_position, sub_global_position, sub_imu_data;
+    ros::Subscriber sub_uavpose, sub_local_position, sub_global_position, sub_imu_data, sub_relative_alt;
 
     // Service
     ros::ServiceClient srv_arming, srv_set_mode;
@@ -68,6 +69,7 @@ private:
     void handleLocalPosition(const geometry_msgs::PoseStamped::ConstPtr &msg);
     void handleGlobalPosition(const sensor_msgs::NavSatFix::ConstPtr &msg);
     void handleImuData (const sensor_msgs::Imu::ConstPtr &msg);
+    void handleRelativeAlt(const std_msgs::Float64::ConstPtr &msg);
 
     // Main function
     void offboardAndArm();
@@ -102,6 +104,8 @@ private:
     float update_frequency;
     // z map when booting UAV
     double z_map;
+    // z in global GPS 
+    double z_relative;
     // yaw compass
     double yaw_compass;
     // tolerance for takeoff and navigate
