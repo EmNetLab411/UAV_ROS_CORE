@@ -23,6 +23,7 @@
 #include <math.h>
 
 #include "uavlab411/control_robot_msg.h"
+#include "uavlab411/data_sensor_msg.h"
 #include "uavlab411/Takeoff.h"
 #include "uavlab411/Navigate.h"
 #include "uavlab411/NavigateGlobal.h"
@@ -53,6 +54,7 @@ void handleGlobalPosition(const sensor_msgs::NavSatFix &);
 void handleUavPose(const geometry_msgs::PoseStampedConstPtr &);
 void stateTimedOut(const ros::TimerEvent &);
 void handleBatteryState(const sensor_msgs::BatteryState &);
+void handleSensorData(const uavlab411::data_sensor_msg &);
 
 // Function handle send msg
 void handle_Write_State(char buff[]);
@@ -290,6 +292,33 @@ static inline void uavlink_command_decode(const uavlink_message_t *msg, uavlink_
 	memcpy(&uavlink_command->param2, _MAV_PAYLOAD(msg) + (index += 4), 4);
 	memcpy(&uavlink_command->param3, _MAV_PAYLOAD(msg) + (index += 4), 4);
 	memcpy(&uavlink_command->param4, _MAV_PAYLOAD(msg) + (index += 4), 4);
+}
+
+typedef struct __uavlink_msg_sensor_data_t
+{
+	int16_t id;
+	int32_t lat;
+	int32_t lon;
+	int16_t temperature;
+	int16_t humidity;
+	int16_t dust;
+} uavlink_msg_sensor_data_t;
+#define UAVLINK_MSG_ID_SENSOR_DATA 8
+#define UAVLINK_MSG_ID_SENSOR_DATA_LEN 16
+
+static inline uint16_t uavlink_sensor_data_encode(uavlink_message_t *msg, const uavlink_msg_sensor_data_t *uavlink_sensor_data)
+{
+	uavlink_msg_sensor_data_t data;
+	data.id = uavlink_sensor_data->id;
+	data.lat = uavlink_sensor_data->lat;
+	data.lon = uavlink_sensor_data->lon;
+	data.temperature = uavlink_sensor_data->temperature;
+	data.humidity = uavlink_sensor_data->humidity;
+	data.dust = uavlink_sensor_data->dust;
+	memcpy(_MAV_PAYLOAD_NON_CONST(msg), &data, UAVLINK_MSG_ID_SENSOR_DATA_LEN);
+	msg->msgid = UAVLINK_MSG_ID_SENSOR_DATA;
+	msg->len = UAVLINK_MSG_ID_SENSOR_DATA_LEN;
+	return 1;
 }
 
 // Message helper define

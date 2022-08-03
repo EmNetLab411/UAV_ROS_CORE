@@ -23,6 +23,7 @@ ros::ServiceClient takeoff_srv, nav_to_waypoint_srv, land_srv, nav_to_GPS_srv;
 
 // ROS Message
 uavlab411::control_robot_msg msg_robot;		   // msg control robot
+uavlab411::data_sensor_msg msg_sensor;         // msg sensor data
 mavros_msgs::State state;					   // State robot
 mavros_msgs::ManualControl manual_control_msg; // Manual control msg
 sensor_msgs::NavSatFix global_msg;			   // message from topic "/mavros/global_position/global"
@@ -34,8 +35,6 @@ int port;
 // Service clients
 ros::ServiceClient arming, set_mode;
 
-// Subcriber
-ros::Subscriber state_sub, sub_imu_data;
 
 // Publisher
 ros::Publisher manual_control_pub;
@@ -274,7 +273,25 @@ void handleGlobalPosition(const sensor_msgs::NavSatFix &n)
 {
 	global_msg = n;
 }
-
+// Handle sensor data from node sensor
+void handleSensorData(const uavlab411::data_sensor_msg &data_from_node)
+{
+	ros::Rate r(2);
+	uavlink_msg_sensor_data_t data;
+	char buf[300];
+	data.id = data_from_node.id;
+	data.lat = (int32_t)(data_from_node.lat*10000000);
+	data.lon = (int32_t)(data_from_node.lon*10000000);
+	data.temperature = (int16_t)(data_from_node.temp*100);
+	data.humidity = (int16_t)(data_from_node.hum*100);
+	data.dust = (int16_t)(data_from_node.dust*100);
+	ROS_INFO("id: %d, lat: %d, lon: %d, temp: %d, hum: %d, dust: %d", data.id, data.lat, data.lon, data.temperature, data.humidity, data.dust);
+	uavlink_message_t msg_sensor;
+	uavlink_sensor_data_encode(&msg_sensor, &data);
+	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg_sensor);
+	writeSocketMessage(buf, len);
+	r.sleep();
+}
 void handleUavPose(const geometry_msgs::PoseStampedConstPtr &_uavpose)
 {
 	uavlink_local_position_int_t uavpose;
@@ -520,7 +537,8 @@ int main(int argc, char **argv)
 	auto local_position_sub = nh.subscribe("/mavros/global_position/local", 1, &handleLocalPosition);
 	auto battery_sub = nh.subscribe("/mavros/battery", 1, &handle_Battery_State);
 	auto uavpose_sub = nh.subscribe("uavlab411/uavpose", 1, &handleUavPose);
-	sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, handleImuData);
+	auto data_sensor_sub = nh.subscribe("/uavlab411/sensor_data",1,&handleSensorData);
+	auto sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, &handleImuData);
 
 	// Service client
 	set_mode = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
