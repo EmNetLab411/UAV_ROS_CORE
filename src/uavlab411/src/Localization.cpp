@@ -40,7 +40,9 @@ void handle_main_optical_flow_pose(const geometry_msgs::PoseWithCovarianceStampe
     double x_map,y_map,z_map;
     x_map = vector_long*cos(alpha + yaw_aruco + PI/2);
     y_map = vector_long*sin(alpha + yaw_aruco + PI/2);
-    z_map = z_barometer;
+    // z_map = z_barometer;
+    // z_map = msg.pose.pose.position.z;
+    z_map = _rangefinder.range;
     double yaw_map = yaw_aruco + PI/2;
     yaw_map = (yaw_map > PI) ? yaw_map - 2*PI : yaw_map;
     
@@ -63,6 +65,8 @@ void handle_main_optical_flow_pose(const geometry_msgs::PoseWithCovarianceStampe
     uav_pose.pose.orientation.z = yaw_map;
     pose_path.header = uav_pose.header;
     pose_path.pose.position = uav_pose.pose.position;
+    pose_path.pose.position.z = -pose_path.pose.position.z;
+    pose_path.pose.position.x = -pose_path.pose.position.x;
     // quaternionTFToMsg(orientation_map, pose_path.pose.orientation);
     uavpose_pub.publish(uav_pose);
     pose_seq++;
