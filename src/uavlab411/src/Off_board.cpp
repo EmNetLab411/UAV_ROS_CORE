@@ -177,7 +177,6 @@ void OffBoard::publish_point()
             {
                 getCurrentPosition();
                 targetZ = _pointMessage.pose.position.z - z_map;
-                _navMessage.type_mask += PositionTarget::IGNORE_YAW;
                 _curMode = Hold;
                 ROS_INFO("Start using aruco marker for holding!");
             }
@@ -430,6 +429,13 @@ bool OffBoard::TakeoffSrv(uavlab411::Takeoff::Request &req, uavlab411::Takeoff::
             _pointMessage.pose.position.y = _uavpose_local_position.pose.position.y;
             _pointMessage.pose.orientation = _uavpose_local_position.pose.orientation;
             targetZ = req.z;
+            _navMessage.type_mask = PositionTarget::IGNORE_PX +
+                                    PositionTarget::IGNORE_PY +
+                                    PositionTarget::IGNORE_PZ +
+                                    PositionTarget::IGNORE_AFX +
+                                    PositionTarget::IGNORE_AFY +
+                                    PositionTarget::IGNORE_AFZ +
+                                    PositionTarget::IGNORE_YAW;
             _curMode = Takeoff;
             res.success = true;
             res.message = "TAKE OFF MODE!";
