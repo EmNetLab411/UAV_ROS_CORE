@@ -173,7 +173,7 @@ void OffBoard::publish_point()
     case Takeoff: // Takeoff mode
         if (!TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout))
         {
-            if (!TIMEOUT(_uavpose, _uavpose_timemout) && abs(_uavpose_local_position.pose.position.z - z_map) > targetZ -0.3)
+            if (!TIMEOUT(_uavpose, _uavpose_timemout) && abs(_uavpose_local_position.pose.position.z - z_map) > targetZ - 0.3)
             {
                 getCurrentPosition();
                 targetZ = _pointMessage.pose.position.z - z_map;
@@ -217,14 +217,10 @@ void OffBoard::holdMode()
     _navMessage.velocity.z = _targetV * e_z / sqrt(e_x * e_x + e_y * e_y);
 
     pub_navMessage.publish(_navMessage);
-    // pub_pointMessage.publish(_pointMessage);
 }
 
 void OffBoard::getCurrentPosition()
 {
-    // _pointMessage.header.stamp = ros::Time::now();
-    // _pointMessage.pose.position = _uavpose.pose.position;
-    // _pointMessage.pose.orientation = _uavpose_local_position.pose.orientation;
     targetX = _uavpose.pose.position.x;
     targetY = _uavpose.pose.position.y;
     targetZ = _uavpose.pose.position.z;
@@ -241,10 +237,8 @@ void OffBoard::navToWaypoint(float x, float y, float z, int rate)
                                 x, y, _uavpose.pose.orientation.z, 1.0 / rate);
     _targetVx = PidControl_vx(_uavpose.pose.position.x, _uavpose.pose.position.y,
                               x, y, 1.0 / rate);
-    // _targetVz = Control_vz(_uavpose.pose.position.z, z);
     _navMessage.yaw_rate = _targetYaw * 0.8;
     _navMessage.velocity.x = _targetVx;
-    // _navMessage.velocity.z = _targetVz;
     _navMessage.position.z = z_map + z;
 
     if (_targetYaw == 0)
@@ -261,15 +255,15 @@ void OffBoard::navToWayPointV2(float x, float y, float z, int rate)
     _targetV = PidControl_vx(_uavpose.pose.position.x, _uavpose.pose.position.y,
                              x, y, 1.0 / rate);
     _targetV = _targetV / 2.0;
-    
+
     e_x = x - _uavpose.pose.position.x;
     e_y = y - _uavpose.pose.position.y;
     float distance = sqrt(e_x * e_x + e_y * e_y + e_z * e_z);
-    if ((Distance_step - distance )/5 +0.1 < _targetV) _targetV = (Distance_step-distance)/5+0.1;
+    if ((Distance_step - distance) / 5 + 0.1 < _targetV)
+        _targetV = (Distance_step - distance) / 5 + 0.1;
     alpha_g = atan2(e_y, e_x);
     yaw = alpha_g - _uavpose.pose.orientation.z;
     yaw = atan2(sin(yaw), cos(yaw));
-    ROS_INFO("v: %f",_targetV);
     Vx = cos(yaw) * _targetV;
     Vy = sin(yaw) * _targetV;
 
@@ -278,11 +272,9 @@ void OffBoard::navToWayPointV2(float x, float y, float z, int rate)
     _navMessage.velocity.x = Vx;
     _navMessage.velocity.y = Vy;
     _navMessage.velocity.z = _targetV * e_z / sqrt(e_x * e_x + e_y * e_y);
-    // _navMessage.position.z = z_map + z;
-    if (sqrt(e_x * e_x + e_y * e_y + e_z * e_z) < tolerance)
+    if (distance < tolerance)
     {
         getCurrentPosition();
-        // _pointMessage.pose.position.z = z_map + z;
         _curMode = Hold;
         ROS_INFO("Switch to HOLD MODE!");
     }
@@ -329,7 +321,6 @@ bool OffBoard::Navigate(uavlab411::Navigate::Request &req, uavlab411::Navigate::
                                     PositionTarget::IGNORE_AFZ +
                                     PositionTarget::IGNORE_YAW;
 
-            // _navMessage.position.z = req.z;
             targetX = req.x;
             targetY = req.y;
             targetZ = req.z;
@@ -350,15 +341,14 @@ bool OffBoard::Navigate(uavlab411::Navigate::Request &req, uavlab411::Navigate::
                                     PositionTarget::IGNORE_AFZ +
                                     PositionTarget::IGNORE_YAW;
 
-            // _navMessage.position.z = req.z;
             targetX = req.x;
             targetY = req.y;
             targetZ = req.z;
-            Distance_step = sqrt((targetX - _uavpose.pose.position.x)*(targetX - _uavpose.pose.position.x)+
-                                (targetY - _uavpose.pose.position.y)*(targetY - _uavpose.pose.position.y)+
-                                (targetZ - _uavpose.pose.position.y)*(targetZ - _uavpose.pose.position.z));
+            Distance_step = sqrt((targetX - _uavpose.pose.position.x) * (targetX - _uavpose.pose.position.x) +
+                                 (targetY - _uavpose.pose.position.y) * (targetY - _uavpose.pose.position.y) +
+                                 (targetZ - _uavpose.pose.position.y) * (targetZ - _uavpose.pose.position.z));
             res.success = true;
-            ROS_INFO("distance step: %f",Distance_step);
+            ROS_INFO("distance step: %f", Distance_step);
             res.message = "NAVIGATE TO WAYPOINT!";
             return true;
             break;
