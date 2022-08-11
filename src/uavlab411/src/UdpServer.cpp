@@ -125,6 +125,10 @@ void handle_cmd_land()
 	std_srvs::Trigger land;
 	if (land_srv.call(land))
 	{
+		msg_robot.step2 = 100;
+		msg_robot.step3 = 136;
+		msg_robot.step4 = 160;
+		control_robot_pub.publish(msg_robot);
 		ROS_INFO("CALLED LAND SRV!");
 		check_take_off = false;
 		check_busy_fly_GPS_point = false;
