@@ -24,6 +24,7 @@
 #include <uavlab411/PidTuning.h>
 #include <uavlab411/Takeoff.h>
 #include <uavlab411/Telemetry.h>
+#include <uavlab411/SetVelocity.h>
 
 using namespace mavros_msgs;
 using namespace std;
@@ -36,7 +37,8 @@ enum Mode
     Hold = 2,
     NavYaw = 1,
     NavNoYaw = 3,
-    NavGlobal = 4
+    NavGlobal = 4,
+    Velocity =5,
 };
 
 float ScalePid(float data, float maxData, float minData, float heso)
@@ -60,7 +62,7 @@ private:
 
     // Service
     ros::ServiceClient srv_arming, srv_set_mode;
-    ros::ServiceServer navigate_srv, navigateGlobal_srv, pid_tuning_srv, takeoff_srv, land_srv, telemetry_srv;
+    ros::ServiceServer navigate_srv, navigateGlobal_srv, pid_tuning_srv, takeoff_srv, land_srv, telemetry_srv, set_velocity_srv;
 
     ros::Timer setpoint_timer;
     // Function handle
@@ -85,6 +87,7 @@ private:
     // Service func
     bool Navigate(uavlab411::Navigate::Request &req, uavlab411::Navigate::Response &res);
     bool NavigateGlobal(uavlab411::NavigateGlobal::Request &req, uavlab411::NavigateGlobal::Response &res);
+    bool SetVelocity(uavlab411::SetVelocity::Request &req, uavlab411::SetVelocity::Response &res);
     bool TakeoffSrv(uavlab411::Takeoff::Request &req, uavlab411::Takeoff::Response &res);
     bool TuningPID(uavlab411::PidTuning::Request &req, uavlab411::PidTuning::Response &res);
     bool Land(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
@@ -108,8 +111,10 @@ private:
     double z_relative;
     // yaw compass
     double yaw_compass;
-    // tolerance for takeoff and navigate
+    // tolerance for takeoff and navigate srv
     float tolerance;
+    // vx,y,z,yaw for velocity service
+    float vx,vy,vz,yawrate;
     // PID Controller parameter
     float Kp_yaw, Kd_yaw, Ki_yaw, Ei_yaw, Error_yaw;
     float Kp_vx, Kd_vx, Ki_vx, Ei_vx, Error_vx;

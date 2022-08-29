@@ -7,7 +7,7 @@ OffBoard::OffBoard()
     sub_local_position = nh.subscribe<geometry_msgs::PoseStamped>("mavros/local_position/pose", 1, &OffBoard::handleLocalPosition, this);
     sub_global_position = nh.subscribe<sensor_msgs::NavSatFix>("/mavros/global_position/global", 1, &OffBoard::handleGlobalPosition, this);
     sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, &OffBoard::handleImuData, this);
-    sub_relative_alt = nh.subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt",1,&OffBoard::handleRelativeAlt, this);
+    sub_relative_alt = nh.subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt", 1, &OffBoard::handleRelativeAlt, this);
 
     pub_navMessage = nh.advertise<mavros_msgs::PositionTarget>("mavros/setpoint_raw/local", 20);
     pub_pointMessage = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 20);
@@ -21,6 +21,7 @@ OffBoard::OffBoard()
     takeoff_srv = nh.advertiseService("uavlab411/takeoff", &OffBoard::TakeoffSrv, this);
     land_srv = nh.advertiseService("uavlab411/land", &OffBoard::Land, this);
     telemetry_srv = nh.advertiseService("uavlab411/telemetry", &OffBoard::GetTelemetry, this);
+    set_velocity_srv = nh.advertiseService("uavlab411/set_velocity", &OffBoard::SetVelocity, this);
 
     _uavpose_timemout = ros::Duration(nh.param("uavpose_timeout", 2.0));
     _uavpose_local_position_timeout = ros::Duration(nh.param("rangefinder_timeout", 3.0));
@@ -171,7 +172,7 @@ void OffBoard::publish_point()
         {
             getCurrentPosition();
             _curMode = Hold;
-            ROS_INFO("Switch to HOLD MODE!");
+            ROS_ERROR("Time out uavpose => Switch to HOLD MODE!");
         }
         break;
     case NavGlobal:
@@ -184,11 +185,11 @@ void OffBoard::publish_point()
     case Takeoff: // Takeoff mode
         if (!TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout))
         {
-            if (z_relative - z_map > _pointMessage.pose.position.z - tolerance )
+            if (z_relative - z_map > _pointMessage.pose.position.z - tolerance)
             {
                 getCurrentPosition();
                 _curMode = Hold;
-                ROS_INFO("Switch to HOLD MODE!");
+                ROS_INFO("In target => Switch to HOLD MODE!");
             }
             else
                 pub_pointMessage.publish(_pointMessage);
@@ -197,9 +198,22 @@ void OffBoard::publish_point()
         {
             getCurrentPosition();
             _curMode = Hold;
-            ROS_INFO("Switch to HOLD MODE!");
+            ROS_ERROR("Time out local position => Switch to HOLD MODE!");
         }
         break;
+    case Velocity:
+        if (!TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout))
+        {
+            pub_navMessage.publish(_navMessage);
+        }
+        else
+        {
+            getCurrentPosition();
+            _curMode = Hold;
+            ROS_ERROR("Time out local position => Switch to HOLD MODE!");
+        }
+        break;
+
     default:
         break;
     }
@@ -267,7 +281,7 @@ void OffBoard::navToWayPointV2(float x, float y, float z, int rate)
         getCurrentPosition();
         _pointMessage.pose.position.z = z_map + z;
         _curMode = Hold;
-        ROS_INFO("Switch to HOLD MODE!");
+        ROS_INFO("In target => Switch to HOLD MODE!");
     }
 }
 
@@ -288,9 +302,9 @@ void OffBoard::navToGPSPoint(const ros::Time &stamp, float speed)
     _navMessage.velocity.x = v * cos(azimuth);
     _navMessage.velocity.y = v * sin(azimuth);
     double distance_z = _endGPoint.z - z_relative + z_map;
-    _navMessage.velocity.z = v* distance_z/distance * Kp_vz;
-    
-    if (sqrt(distance*distance + distance_z*distance_z) < tolerance)
+    _navMessage.velocity.z = v * distance_z / distance * Kp_vz;
+
+    if (sqrt(distance * distance + distance_z * distance_z) < tolerance)
     {
         getCurrentPosition();
         _curMode = Hold;
@@ -531,6 +545,37 @@ bool OffBoard::TuningPID(uavlab411::PidTuning::Request &req, uavlab411::PidTunin
     return true;
 }
 
+bool OffBoard::SetVelocity(uavlab411::SetVelocity::Request &req, uavlab411::SetVelocity::Response &res)
+{
+    if (checkState())
+    {
+        vx = req.vx;
+        vy = req.vy;
+        vz = req.vz;
+        yawrate = req.yawrate;
+        _navMessage.type_mask = PositionTarget::IGNORE_PX +
+                                    PositionTarget::IGNORE_PY +
+                                    PositionTarget::IGNORE_PZ +
+                                    PositionTarget::IGNORE_AFX +
+                                    PositionTarget::IGNORE_AFY +
+                                    PositionTarget::IGNORE_AFZ +
+                                    PositionTarget::IGNORE_YAW;
+        _navMessage.velocity.x = req.vx;
+        _navMessage.velocity.y = req.vy;
+        _navMessage.velocity.z = req.vz;
+        _navMessage.yaw_rate = req.yawrate;
+        _navMessage.header.stamp = ros::Time::now();
+        _curMode = Velocity;
+        res.success = true;
+        return true;
+    }
+    else
+    {
+        ROS_ERROR("can't set velocity, uav not in offboard mode and armed");
+        res.success = false;
+        return true;
+    }
+}
 float OffBoard::PidControl_yaw(float x_cur, float y_cur, float x_goal, float y_goal, float alpha, float dt)
 {
 
