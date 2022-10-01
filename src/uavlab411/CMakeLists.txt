@@ -143,6 +143,7 @@ include_directories(
 add_executable(UdpServer src/UdpServer.cpp)
 add_executable(Localization src/Localization.cpp)
 add_executable(Off_board src/Off_board.cpp)
+add_executable(Sensor_data src/Sensor_data.cpp)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -161,6 +162,9 @@ target_link_libraries(UdpServer
   ${catkin_LIBRARIES}
 )
 target_link_libraries(Off_board
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(Sensor_data
   ${catkin_LIBRARIES}
 )
 

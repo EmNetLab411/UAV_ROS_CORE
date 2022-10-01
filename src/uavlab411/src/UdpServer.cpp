@@ -542,7 +542,7 @@ int main(int argc, char **argv)
 	auto local_position_sub = nh.subscribe("/mavros/global_position/local", 1, &handleLocalPosition);
 	auto battery_sub = nh.subscribe("/mavros/battery", 1, &handle_Battery_State);
 	auto uavpose_sub = nh.subscribe("uavlab411/uavpose", 1, &handleUavPose);
-	auto data_sensor_sub = nh.subscribe("/uavlab411/sensor_data",1,&handleSensorData);
+	auto data_sensor_sub = nh.subscribe("/uavlab411/sensor",1,&handleSensorData);
 	auto sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, &handleImuData);
 
 	// Service client
