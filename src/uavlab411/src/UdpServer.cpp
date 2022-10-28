@@ -198,6 +198,7 @@ void handle_msg_control_robot(uavlink_message_t message)
 	msg_robot.step3 = robot_msg_rev.step3;
 	msg_robot.step4 = robot_msg_rev.step4;
 	msg_robot.step5 = robot_msg_rev.step5;
+	msg_robot.header.stamp = ros::Time::now();
 	control_robot_pub.publish(msg_robot);
 }
 void handle_msg_manual_control(uavlink_message_t message)
