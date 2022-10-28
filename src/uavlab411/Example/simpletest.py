@@ -22,10 +22,6 @@ pwm = Adafruit_PCA9685.PCA9685()
 # Alternatively specify a different address and/or bus:
 #pwm = Adafruit_PCA9685.PCA9685(address=0x41, busnum=2)
 
-# Configure min and max servo pulse lengths
-servo_min = 150  # Min pulse length out of 4096
-servo_max = 600  # Max pulse length out of 4096
-
 # Helper function to make setting a servo pulse width simpler.
 def set_servo_pulse(channel, pulse):
     pulse_length = 1000000    # 1,000,000 us per second
@@ -40,35 +36,36 @@ def set_servo_pulse(channel, pulse):
 
 # Set frequency to 60hz, good for servos.
 pwm.set_pwm_freq(60)
-
+stamp = 0
 def callback(control_robot):
     Pstep2 = 400 - control_robot.step2 * (400 - 230) / 90
     Pstep3 = 130 + (180 - control_robot.step3) * (600 - 130) / 180
     Pstep4 = 350 + (90 - control_robot.step4) * (550 - 350) / 90
     Pstep5 = 400 - control_robot.step5 * 200
+    global stamp
+    stamp = control_robot.header.stamp.secs
 
     pwm.set_pwm(0, 0, int(Pstep2))
     pwm.set_pwm(1, 0, int(Pstep3))
     pwm.set_pwm(2, 0, int(Pstep4))
     pwm.set_pwm(3, 0, int(Pstep5))
-
+    
     rospy.loginfo("Step 2 Pulse: %i", control_robot.step2)
     rospy.loginfo("Step 3 Pulse: %i", control_robot.step3)
     rospy.loginfo("Step 4 Pulse: %i", control_robot.step4)
     rospy.loginfo("Step 5 Pulse: %i", control_robot.step5)
-    print("Message Time: ", control_robot.header.stamp)
-
-
-
-#print('Moving servo on channel 0, press Ctrl-C to quit...')
-#x = input('Enter value: ')
-#pwm.set_pwm(3, 0, int(x))
 
 def listener():
     rospy.init_node('listener', anonymous=True)
     rospy.Subscriber('uavlab411/control_robot', control_robot_msg, callback)
-    rospy.spin()
 
 if __name__ == '__main__':
     listener()
+    while not rospy.is_shutdown:
+        timeOut = rospy.Time.now().secs - stamp
+        print("Time Out: ", timeOut)
+        if timeOut >= 3:
+            pwm = Adafruit_PCA9685.PCA9685()
+    rospy.spin()
+    
 
