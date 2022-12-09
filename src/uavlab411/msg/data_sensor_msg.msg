@@ -4,3 +4,5 @@ float32 lon
 float32 temp
 float32 hum
 float32 gas
+float32 tds
+float32 ph

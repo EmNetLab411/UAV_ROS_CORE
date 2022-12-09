@@ -302,9 +302,11 @@ typedef struct __uavlink_msg_sensor_data_t
 	int16_t temperature;
 	int16_t humidity;
 	int16_t gas;
+	int16_t tds;
+	int16_t ph;
 } uavlink_msg_sensor_data_t;
 #define UAVLINK_MSG_ID_SENSOR_DATA 8
-#define UAVLINK_MSG_ID_SENSOR_DATA_LEN 16
+#define UAVLINK_MSG_ID_SENSOR_DATA_LEN 20
 
 static inline uint16_t uavlink_sensor_data_encode(uavlink_message_t *msg, const uavlink_msg_sensor_data_t *uavlink_sensor_data)
 {
@@ -315,6 +317,8 @@ static inline uint16_t uavlink_sensor_data_encode(uavlink_message_t *msg, const 
 	data.temperature = uavlink_sensor_data->temperature;
 	data.humidity = uavlink_sensor_data->humidity;
 	data.gas = uavlink_sensor_data->gas;
+	data.tds = uavlink_sensor_data->tds;
+	data.ph = uavlink_sensor_data->ph;
 	memcpy(_MAV_PAYLOAD_NON_CONST(msg), &data, UAVLINK_MSG_ID_SENSOR_DATA_LEN);
 	msg->msgid = UAVLINK_MSG_ID_SENSOR_DATA;
 	msg->len = UAVLINK_MSG_ID_SENSOR_DATA_LEN;

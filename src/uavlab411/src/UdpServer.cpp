@@ -290,11 +290,13 @@ void handleSensorData(const uavlab411::data_sensor_msg &data_from_node)
 	data.temperature = (int16_t)(data_from_node.temp*100);
 	data.humidity = (int16_t)(data_from_node.hum*100);
 	data.gas = (int16_t)(data_from_node.gas*100);
+	data.tds = (int16_t)(data_from_node.tds*100);
+	data.ph = (int16_t)(data_from_node.ph*100);
 	uavlink_message_t msg_sensor;
 	uavlink_sensor_data_encode(&msg_sensor, &data);
 	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg_sensor);
 	writeSocketMessage(buf, len);
-	ROS_INFO("id sensor: %d",data.id);
+	// ROS_INFO("id sensor: %d",data.id);
 	
 }
 void handleUavPose(const geometry_msgs::PoseStampedConstPtr &_uavpose)

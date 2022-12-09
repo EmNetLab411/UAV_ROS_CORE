@@ -34,11 +34,12 @@ void handle_string(string str, uavlab411::data_sensor_msg &s)
 		data = data + str[i];
 		if (str[i + 1] == ',')
 		{
+			data = data + " ";
 			i++;
 		}
 	}
 	ss << data;
-	ss >> s.id >> s.lat >> s.lon >> s.temp >> s.hum >> s.gas;
+	ss >> s.id >> s.lat >> s.lon >> s.tds >> s.temp >> s.ph >> s.hum >> s.gas;
 }
 
 
@@ -65,6 +66,8 @@ int main(int argc, char** argv)
 			ROS_INFO("%d", sens_msg.id);	
 			ROS_INFO("%f", sens_msg.lat);
 			ROS_INFO("%f", sens_msg.lon);
+			ROS_INFO("%f", sens_msg.tds);
+			ROS_INFO("%f", sens_msg.ph);
 			ROS_INFO("%f", sens_msg.temp);
 			ROS_INFO("%f", sens_msg.hum);
 			ROS_INFO("%f", sens_msg.gas);
