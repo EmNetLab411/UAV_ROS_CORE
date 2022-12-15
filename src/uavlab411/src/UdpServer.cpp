@@ -218,10 +218,11 @@ void handle_msg_waypoint(uavlink_message_t message)
 	
 	uavlink_msg_waypoint_t waypoint;
 	uavlink_waypoint_decode(&message, &waypoint);
-	// ROS_INFO("msg rev:x= %f,y=%f,z=%f",waypoint.targetX,waypoint.targetY,waypoint.targetZ);
+	
 	if (waypoint.type == 0) waypoint_indoor_vector.push_back(waypoint);
 	else if (waypoint.type == 1)
 	{
+		// ROS_INFO("msg rev:id:%d x= %f,y=%f,z=%f,",waypoint.wpId,waypoint.targetX,waypoint.targetY,waypoint.targetZ);
 		if (waypoint.wpId > lastest_id_waypoint)
 		{
 			waypoint_GPS_vector.push_back(waypoint);

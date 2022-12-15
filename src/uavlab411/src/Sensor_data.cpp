@@ -47,7 +47,6 @@ int main(int argc, char** argv)
 {
     ros::init(argc, argv, "lora_data");
     ros::NodeHandle nh;
-	int count = 0;
 
     ros::Publisher pub_loraData = nh.advertise<uavlab411::data_sensor_msg>("uavlab411/sensor", 1000);
 
@@ -61,22 +60,18 @@ int main(int argc, char** argv)
 		fgets(read_buf, sizeof(read_buf), k);
 		
         handle_string(read_buf, sens_msg);
-		if(count % 2 == 0)
-		{
-			ROS_INFO("%d", sens_msg.id);	
-			ROS_INFO("%f", sens_msg.lat);
-			ROS_INFO("%f", sens_msg.lon);
-			ROS_INFO("%f", sens_msg.tds);
-			ROS_INFO("%f", sens_msg.ph);
-			ROS_INFO("%f", sens_msg.temp);
-			ROS_INFO("%f", sens_msg.hum);
-			ROS_INFO("%f", sens_msg.gas);
+			// ROS_INFO("%d", sens_msg.id);	
+			// ROS_INFO("%f", sens_msg.lat);
+			// ROS_INFO("%f", sens_msg.lon);
+			// ROS_INFO("%f", sens_msg.tds);
+			// ROS_INFO("%f", sens_msg.ph);
+			// ROS_INFO("%f", sens_msg.temp);
+			// ROS_INFO("%f", sens_msg.hum);
+			// ROS_INFO("%f", sens_msg.gas);
 
 			pub_loraData.publish(sens_msg);
 			
 			//ros::spinOnce();
-		}
-		count++;
 	}
 
 	close(serial_port);
