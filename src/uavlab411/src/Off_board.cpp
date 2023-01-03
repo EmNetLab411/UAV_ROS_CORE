@@ -96,7 +96,7 @@ void OffBoard::offboardAndArm()
 
     if (!cur_state.armed)
     {
-        z_map = _uavpose_local_position.pose.position.z;
+        z_map = _uavpose.pose.position.z;
         ROS_INFO("ZMAP: %f", z_map);
         ros::Time start = ros::Time::now();
         ROS_INFO("arming");
@@ -204,7 +204,17 @@ void OffBoard::holdMode()
     e_y = targetY - _uavpose.pose.position.y;
 
     alpha_g = atan2(e_y, e_x);
-    yaw = alpha_g - _uavpose.pose.orientation.z;
+    //get yaw of uav
+    tf::Quaternion q(
+        _uavpose.pose.orientation.x,
+        _uavpose.pose.orientation.y,
+        _uavpose.pose.orientation.z,
+        _uavpose.pose.orientation.w);
+    tf::Matrix3x3 m(q);
+    double roll, pitch, yaw_uav_pose;
+    m.getRPY(roll, pitch, yaw_uav_pose);
+    //get delta yaw
+    yaw = alpha_g - yaw_uav_pose;
     yaw = atan2(sin(yaw), cos(yaw));
 
     Vx = cos(yaw) * _targetV;
@@ -262,7 +272,17 @@ void OffBoard::navToWayPointV2(float x, float y, float z, int rate)
     if ((Distance_step - distance) / 5 + 0.1 < _targetV)
         _targetV = (Distance_step - distance) / 5 + 0.1;
     alpha_g = atan2(e_y, e_x);
-    yaw = alpha_g - _uavpose.pose.orientation.z;
+    //get yaw of uav
+    tf::Quaternion q(
+        _uavpose.pose.orientation.x,
+        _uavpose.pose.orientation.y,
+        _uavpose.pose.orientation.z,
+        _uavpose.pose.orientation.w);
+    tf::Matrix3x3 m(q);
+    double roll, pitch, yaw_uav_pose;
+    m.getRPY(roll, pitch, yaw_uav_pose);
+    //get delta yaw
+    yaw = alpha_g - yaw_uav_pose;
     yaw = atan2(sin(yaw), cos(yaw));
     Vx = cos(yaw) * _targetV;
     Vy = sin(yaw) * _targetV;
