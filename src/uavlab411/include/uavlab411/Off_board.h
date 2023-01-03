@@ -22,6 +22,7 @@
 #include <uavlab411/PidTuning.h>
 #include <uavlab411/Takeoff.h>
 #include <uavlab411/Telemetry.h>
+#include "uavlab411/control_robot_msg.h"
 
 using namespace mavros_msgs;
 using namespace std;
@@ -51,7 +52,7 @@ private:
     ros::NodeHandle nh;
     // Publisher
     ros::Publisher pub_navMessage;
-    ros::Publisher pub_pointMessage, pub_globalMessage;
+    ros::Publisher pub_pointMessage, pub_globalMessage, pub_control_robot;
     // Subscriber
     ros::Subscriber sub_state;
     ros::Subscriber sub_uavpose, sub_local_position, sub_global_position;
@@ -98,6 +99,8 @@ private:
     ros::Time getTime;
     Mode _curMode;
     float update_frequency;
+    //msg control robot
+    uavlab411::control_robot_msg msg_robot;  
     // z map when booting UAV
     double z_map;
     // tolerance for takeoff and navigate

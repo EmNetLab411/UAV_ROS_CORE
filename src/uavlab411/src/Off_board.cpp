@@ -10,6 +10,7 @@ OffBoard::OffBoard()
     pub_navMessage = nh.advertise<mavros_msgs::PositionTarget>("mavros/setpoint_raw/local", 20);
     pub_pointMessage = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 20);
     pub_globalMessage = nh.advertise<mavros_msgs::GlobalPositionTarget>("mavros/setpoint_raw/global", 20);
+    pub_control_robot = nh.advertise<uavlab411::control_robot_msg>("uavlab411/control_robot", 20);
 
     srv_arming = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     srv_set_mode = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
@@ -476,6 +477,13 @@ bool OffBoard::Land(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response
 
         static ros::Rate r(10);
         auto start = ros::Time::now();
+        msg_robot.step1 = 90;
+        msg_robot.step2 = 0;
+        msg_robot.step3 = 90;
+        msg_robot.step4 = 180;
+        msg_robot.step5 = 0;
+        msg_robot.header.stamp = ros::Time::now();
+        pub_control_robot.publish(msg_robot);
         while (ros::ok())
         {
             if (cur_state.mode == "AUTO.LAND")
