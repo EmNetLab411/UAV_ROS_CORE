@@ -39,8 +39,8 @@ using std::string;
 #define UAVLINK_CMD_SET_MODE 26
 
 #define PI 3.14159265358979323846 
-#define MAX_VOLTAGE 16
-#define MIN_VOLTAGE 14
+#define MAX_VOLTAGE 12.6
+#define MIN_VOLTAGE 11.1
 #define TIMEOUT(msg, timeout) (msg.header.stamp.isZero() || (ros::Time::now() - msg.header.stamp > timeout))
 
 string mode_define[] = {"MANUAL", "POSCTL", "OFFBOARD", "AUTO.LAND"};

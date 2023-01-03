@@ -218,7 +218,7 @@ void handle_msg_waypoint(uavlink_message_t message)
 	
 	uavlink_msg_waypoint_t waypoint;
 	uavlink_waypoint_decode(&message, &waypoint);
-	
+	ROS_INFO("new msg wp:type:%d   id:%d",waypoint.type,waypoint.wpId);
 	if (waypoint.type == 0) waypoint_indoor_vector.push_back(waypoint);
 	else if (waypoint.type == 1)
 	{
