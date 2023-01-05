@@ -63,7 +63,7 @@ def listener():
 
 if __name__ == '__main__':
     listener()
-    while not rospy.is_shutdown:
+    while True:
         timeOut = rospy.Time.now().secs - stamp
         print("Time Out: ", timeOut)
         if timeOut >= 3:

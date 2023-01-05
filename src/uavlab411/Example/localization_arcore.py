@@ -66,7 +66,7 @@ def thread_sending(client_sock):
         print("sending connect fail")
    
 rospy.init_node("arcore")
-pub_pose = rospy.Publisher('/uav_lab411/pose', PoseStamped, queue_size=10)
+pub_pose = rospy.Publisher('/uavlab411/uavpose', PoseStamped, queue_size=10)
 pub_path = rospy.Publisher('/uav_lab411/path', Path, queue_size=10)
 server_sock=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
 
