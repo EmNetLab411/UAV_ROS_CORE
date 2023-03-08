@@ -206,14 +206,15 @@ void OffBoard::holdMode()
 
     alpha_g = atan2(e_y, e_x);
     //get yaw of uav
-    tf::Quaternion q(
-        _uavpose.pose.orientation.x,
-        _uavpose.pose.orientation.y,
-        _uavpose.pose.orientation.z,
-        _uavpose.pose.orientation.w);
-    tf::Matrix3x3 m(q);
+    // tf::Quaternion q(
+    //     _uavpose.pose.orientation.x,
+    //     _uavpose.pose.orientation.y,
+    //     _uavpose.pose.orientation.z,
+    //     _uavpose.pose.orientation.w);
+    // tf::Matrix3x3 m(q);
     double roll, pitch, yaw_uav_pose;
-    m.getRPY(roll, pitch, yaw_uav_pose);
+    // m.getRPY(roll, pitch, yaw_uav_pose);
+    yaw_uav_pose = _uavpose.pose.orientation.z;
     //get delta yaw
     yaw = alpha_g - yaw_uav_pose;
     yaw = atan2(sin(yaw), cos(yaw));
@@ -266,7 +267,6 @@ void OffBoard::navToWayPointV2(float x, float y, float z, int rate)
     _targetV = PidControl_vx(_uavpose.pose.position.x, _uavpose.pose.position.y,
                              x, y, 1.0 / rate);
     _targetV = _targetV / 2.0;
-
     e_x = x - _uavpose.pose.position.x;
     e_y = y - _uavpose.pose.position.y;
     float distance = sqrt(e_x * e_x + e_y * e_y + e_z * e_z);
@@ -274,14 +274,15 @@ void OffBoard::navToWayPointV2(float x, float y, float z, int rate)
         _targetV = (Distance_step - distance) / 5 + 0.1;
     alpha_g = atan2(e_y, e_x);
     //get yaw of uav
-    tf::Quaternion q(
-        _uavpose.pose.orientation.x,
-        _uavpose.pose.orientation.y,
-        _uavpose.pose.orientation.z,
-        _uavpose.pose.orientation.w);
-    tf::Matrix3x3 m(q);
+    // tf::Quaternion q(
+    //     _uavpose.pose.orientation.x,
+    //     _uavpose.pose.orientation.y,
+    //     _uavpose.pose.orientation.z,
+    //     _uavpose.pose.orientation.w);
+    // tf::Matrix3x3 m(q);
     double roll, pitch, yaw_uav_pose;
-    m.getRPY(roll, pitch, yaw_uav_pose);
+    yaw_uav_pose = _uavpose.pose.orientation.z;
+    // m.getRPY(roll, pitch, yaw_uav_pose);
     //get delta yaw
     yaw = alpha_g - yaw_uav_pose;
     yaw = atan2(sin(yaw), cos(yaw));
