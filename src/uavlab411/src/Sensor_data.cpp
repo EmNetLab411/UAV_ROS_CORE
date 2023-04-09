@@ -39,7 +39,7 @@ void handle_string(string str, uavlab411::data_sensor_msg &s)
 		}
 	}
 	ss << data;
-	ss >> s.id >> s.lat >> s.lon >> s.tds >> s.ph >> s.temp >> s.hum >> s.gas;
+	ss >> s.id >> s.lat >> s.lon >> s.temp >> s.hum >> s.gas;
 }
 
 

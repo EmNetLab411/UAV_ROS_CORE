@@ -7,5 +7,5 @@
     </node>
     <node name="offboard_node" pkg="uavlab411" type="Off_board" output="screen">
     </node>
-    <node name="sensor_node" pkg="uavlab411" type="Sensor_data" output="screen"/>
+    <node name="sensor_node" pkg="uavlab411" type="Sensor_data" output="screen"/> 
 </launch>
