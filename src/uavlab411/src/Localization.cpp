@@ -15,7 +15,7 @@ Localization::Localization()
 // handle subscribe topic funtion
 void Localization::handle_main_optical_flow_pose(const geometry_msgs::PoseWithCovarianceStamped &msg)
 {
-    if(value.c_str() == "INDOOR")
+    if(value == "INDOOR")
     {
         //convert from main_camera_optical frame_id to aruco_map frame_id
         //main_camera_optical trung goc toa do voi map nhung goc xoay cung chieu voi yaw cua uav
@@ -122,7 +122,7 @@ void Localization::handle_local_position(const geometry_msgs::PoseStamped &msg)
 
 void Localization::handle_global_position_local(const nav_msgs::Odometry &odom)
 {
-    if(value.c_str() == "OUTDOOR")
+    if(value == "OUTDOOR")
     {
         pose_path_GPS.header = odom.header;
         pose_path_GPS.pose.position = odom.pose.pose.position;

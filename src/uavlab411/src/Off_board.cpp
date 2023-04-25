@@ -113,8 +113,15 @@ void OffBoard::offboardAndArm()
 
     if (!cur_state.armed)
     {
-        // z_map = _uavpose_local_position.pose.position.z;
-        z_map = z_relative;
+        if(value == "INDOOR")
+        {
+            z_map = _uavpose_local_position.pose.position.z;
+        }
+        else if(value == "OUTDOOR")
+        {
+            z_map = z_relative;
+        }
+            
         ROS_INFO("ZMAP: %f", z_map);
         ros::Time start = ros::Time::now();
         ROS_INFO("arming");
@@ -185,14 +192,28 @@ void OffBoard::publish_point()
     case Takeoff: // Takeoff mode
         if (!TIMEOUT(_uavpose_local_position, _uavpose_local_position_timeout))
         {
-            if (z_relative - z_map > _pointMessage.pose.position.z - tolerance)
+            if(value == "OUTDOOR")
             {
-                getCurrentPosition();
-                _curMode = Hold;
-                ROS_INFO("In target => Switch to HOLD MODE!");
+                if (z_relative - z_map > _pointMessage.pose.position.z - tolerance)
+                {
+                    getCurrentPosition();
+                    _curMode = Hold;
+                    ROS_INFO("In target => Switch to HOLD MODE!");
+                }
+                else
+                    pub_pointMessage.publish(_pointMessage);
             }
-            else
-                pub_pointMessage.publish(_pointMessage);
+            else if(value == "INDOOR")
+            {         
+                if (_uavpose.pose.position.z > _pointMessage.pose.position.z - tolerance - z_map)
+                {
+                    getCurrentPosition();
+                    _curMode = Hold;
+                    ROS_INFO("Switch to HOLD MODE!");
+                }
+                else
+                    pub_pointMessage.publish(_pointMessage);
+            }
         }
         else
         {
@@ -663,6 +684,8 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "offb_node");
     ROS_INFO("OFFBOARD NODE INITIAL!");
+
+    ros::param::get("/value", value);
 
     OffBoard ob;
 

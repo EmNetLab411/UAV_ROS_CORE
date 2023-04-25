@@ -31,6 +31,8 @@ using namespace std;
 
 #define TIMEOUT(msg, timeout) (msg.header.stamp.isZero() || (ros::Time::now() - msg.header.stamp > timeout))
 #define PI 3.14159265358979323846 
+std::string value;
+
 enum Mode
 {
     Takeoff = 0,
