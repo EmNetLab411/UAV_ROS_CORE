@@ -23,7 +23,6 @@ ros::ServiceClient takeoff_srv, nav_to_waypoint_srv, land_srv, nav_to_GPS_srv;
 
 // ROS Message
 uavlab411::control_robot_msg msg_robot;		   // msg control robot
-uavlab411::data_sensor_msg msg_sensor;         // msg sensor data
 mavros_msgs::State state;					   // State robot
 mavros_msgs::ManualControl manual_control_msg; // Manual control msg
 sensor_msgs::NavSatFix global_msg;			   // message from topic "/mavros/global_position/global"
@@ -291,9 +290,9 @@ void handleSensorData(const uavlab411::data_sensor_msg &data_from_node)
 	data.temperature = (int16_t)(data_from_node.temp*100);
 	data.humidity = (int16_t)(data_from_node.hum*100);
 	data.gas = (int16_t)(data_from_node.gas*100);
-	uavlink_message_t msg_sensor;
-	uavlink_sensor_data_encode(&msg_sensor, &data);
-	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg_sensor);
+	uavlink_message_t msg;
+	uavlink_sensor_data_encode(&msg, &data);
+	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
 	writeSocketMessage(buf, len);
 	// ROS_INFO("id sensor: %d",data.id);
 	
@@ -332,6 +331,19 @@ void handleImuData(const sensor_msgs::Imu::ConstPtr &msg)
 	tf::Matrix3x3 m(q);
 	double roll, pitch;
 	m.getRPY(roll, pitch, yaw_compass);
+}
+
+void handleControlRobot(const uavlab411::control_robot_msg &_robot)
+{
+	uavlink_control_robot_t robot;
+	robot.step1 = _robot.step1;
+	robot.step2 = _robot.step2;
+	robot.step4 = _robot.step4;
+	uavlink_message_t msg;
+	uavlink_control_robot_encode(&msg, &robot);
+	char buf[100];
+	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
+	writeSocketMessage(buf, len);
 }
 
 void init()
@@ -546,6 +558,7 @@ int main(int argc, char **argv)
 	auto uavpose_sub = nh.subscribe("uavlab411/uavpose", 1, &handleUavPose);
 	auto data_sensor_sub = nh.subscribe("/uavlab411/sensor",1,&handleSensorData);
 	auto sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, &handleImuData);
+	auto control_robot_sub = nh.subscribe("send_control_robot", 1, &handleControlRobot);
 
 	// Service client
 	set_mode = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");

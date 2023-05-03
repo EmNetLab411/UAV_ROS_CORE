@@ -48,6 +48,7 @@ string mode_define[] = {"MANUAL", "POSCTL", "OFFBOARD", "AUTO.LAND"};
 void readingSocketThread();
 void writeSocketMessage(char *, int);
 int createSocket(int);
+
 void handleState(const mavros_msgs::State &);
 void handleLocalPosition(const nav_msgs::Odometry &);
 void handleGlobalPosition(const sensor_msgs::NavSatFix &);
@@ -55,6 +56,7 @@ void handleUavPose(const geometry_msgs::PoseStampedConstPtr &);
 void stateTimedOut(const ros::TimerEvent &);
 void handleBatteryState(const sensor_msgs::BatteryState &);
 void handleSensorData(const uavlab411::data_sensor_msg &);
+void handleControlRobot(const uavlab411::control_robot_msg &);
 
 // Function handle send msg
 void handle_Write_State(char buff[]);
@@ -217,6 +219,20 @@ typedef struct __uavlink_control_robot_t
 } uavlink_control_robot_t;
 #define UAVLINK_CONTROL_ROBOT_MSG_ID 7
 #define UAVLINK_CONTROL_ROBOT_MSG_LEN 20
+
+static inline uint16_t uavlink_control_robot_encode(uavlink_message_t *msg, const uavlink_control_robot_t *uavlink_control_robot)
+{
+	uavlink_control_robot_t packet;
+	packet.step1 = uavlink_control_robot->step1;
+	packet.step2 = uavlink_control_robot->step2;
+	packet.step3 = uavlink_control_robot->step3;
+	packet.step4 = uavlink_control_robot->step4;
+	packet.step5 = uavlink_control_robot->step5;
+	memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, UAVLINK_CONTROL_ROBOT_MSG_LEN);
+	msg->msgid = UAVLINK_CONTROL_ROBOT_MSG_ID;
+	msg->len = UAVLINK_CONTROL_ROBOT_MSG_LEN;
+	return 1;
+}
 
 static inline void uavlink_control_robot_decode(const uavlink_message_t *msg, uavlink_control_robot_t *state)
 {
