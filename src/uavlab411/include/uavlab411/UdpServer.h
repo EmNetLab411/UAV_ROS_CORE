@@ -24,6 +24,7 @@
 
 #include "uavlab411/control_robot_msg.h"
 #include "uavlab411/data_sensor_msg.h"
+#include "uavlab411/detect_object_msg.h"
 #include "uavlab411/Takeoff.h"
 #include "uavlab411/Navigate.h"
 #include "uavlab411/NavigateGlobal.h"
@@ -57,6 +58,7 @@ void stateTimedOut(const ros::TimerEvent &);
 void handleBatteryState(const sensor_msgs::BatteryState &);
 void handleSensorData(const uavlab411::data_sensor_msg &);
 void handleControlRobot(const uavlab411::control_robot_msg &);
+void handleDetectObject(const uavlab411::detect_object_msg &);
 
 // Function handle send msg
 void handle_Write_State(char buff[]);
@@ -324,17 +326,40 @@ typedef struct __uavlink_msg_sensor_data_t
 
 static inline uint16_t uavlink_sensor_data_encode(uavlink_message_t *msg, const uavlink_msg_sensor_data_t *uavlink_sensor_data)
 {
-	uavlink_msg_sensor_data_t data;
-	data.id = uavlink_sensor_data->id;
-	data.lat = uavlink_sensor_data->lat;
-	data.lon = uavlink_sensor_data->lon;
-	data.temperature = uavlink_sensor_data->temperature;
-	data.humidity = uavlink_sensor_data->humidity;
-	data.gas = uavlink_sensor_data->gas;
-	memcpy(_MAV_PAYLOAD_NON_CONST(msg), &data, UAVLINK_MSG_ID_SENSOR_DATA_LEN);
+	uavlink_msg_sensor_data_t packet;
+	packet.id = uavlink_sensor_data->id;
+	packet.lat = uavlink_sensor_data->lat;
+	packet.lon = uavlink_sensor_data->lon;
+	packet.temperature = uavlink_sensor_data->temperature;
+	packet.humidity = uavlink_sensor_data->humidity;
+	packet.gas = uavlink_sensor_data->gas;
+	memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, UAVLINK_MSG_ID_SENSOR_DATA_LEN);
 	msg->msgid = UAVLINK_MSG_ID_SENSOR_DATA;
 	msg->len = UAVLINK_MSG_ID_SENSOR_DATA_LEN;
 	return 1;
+}
+
+typedef struct _uavlink_msg_detect_object_t
+{
+	float x;
+	float y;
+	float z;
+	float distance;
+} uavlink_msg_detect_object_t;
+#define UAVLINK_MSG_ID_DETECT_OBJECT 9
+#define UAVLINK_MSG_ID_DETECT_OBJECT_LEN 16
+
+static inline uint16_t uavlink_detect_object_encode(uavlink_message_t *msg, const uavlink_msg_detect_object_t *uavlink_detect_object)
+{
+	uavlink_msg_detect_object_t packet;
+	packet.x = uavlink_detect_object->x;
+	packet.y = uavlink_detect_object->y;
+	packet.z = uavlink_detect_object->z;
+	packet.distance = uavlink_detect_object->distance;
+	memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, UAVLINK_MSG_ID_DETECT_OBJECT_LEN);
+	msg->msgid = UAVLINK_MSG_ID_DETECT_OBJECT;
+	msg->len = UAVLINK_MSG_ID_DETECT_OBJECT_LEN;
+	return 1;	
 }
 
 // Message helper define

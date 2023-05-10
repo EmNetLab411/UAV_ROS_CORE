@@ -346,6 +346,20 @@ void handleControlRobot(const uavlab411::control_robot_msg &_robot)
 	writeSocketMessage(buf, len);
 }
 
+void handleDetectObject(const uavlab411::detect_object_msg &_object)
+{
+	uavlink_msg_detect_object_t object;
+	object.x = _object.x;
+	object.y = _object.y;
+	object.z = _object.z;
+	object.distance = _object.distance;
+	uavlink_message_t msg;
+	uavlink_detect_object_encode(&msg, &object);
+	char buf[100];
+	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
+	writeSocketMessage(buf, len);
+}
+
 void init()
 {
 	// Thread for UDP soket read
@@ -559,6 +573,7 @@ int main(int argc, char **argv)
 	auto data_sensor_sub = nh.subscribe("/uavlab411/sensor",1,&handleSensorData);
 	auto sub_imu_data = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 1, &handleImuData);
 	auto control_robot_sub = nh.subscribe("send_control_robot", 1, &handleControlRobot);
+	auto detect_object_sub = nh.subscribe("/uavlab411/detect", 1, &handleDetectObject);
 
 	// Service client
 	set_mode = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
