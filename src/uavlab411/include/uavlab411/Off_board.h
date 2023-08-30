@@ -118,6 +118,7 @@ private:
     // vx,y,z,yaw for velocity service
     float vx,vy,vz,yawrate;
     // PID Controller parameter
+    float Distance_step;
     float Kp_yaw, Kd_yaw, Ki_yaw, Ei_yaw, Error_yaw;
     float Kp_vx, Kd_vx, Ki_vx, Ei_vx, Error_vx;
     float Kp_vz, Kd_vz, Ki_vz;
