@@ -22,6 +22,7 @@
 #include <array>
 #include <math.h>
 
+#include "uavlab411/drawing_point_msg.h"
 #include "uavlab411/control_robot_msg.h"
 #include "uavlab411/data_sensor_msg.h"
 #include "uavlab411/detect_object_msg.h"
@@ -362,6 +363,23 @@ static inline uint16_t uavlink_detect_object_encode(uavlink_message_t *msg, cons
 	return 1;	
 }
 
+typedef struct _uavlink_msg_drawing_point_t
+{
+	float x;
+	float y;
+	float z;
+} uavlink_msg_drawing_point_t;
+#define UAVLINK_MSG_ID_DRAWING_POINT 10
+#define UAVLINK_MSG_ID_DRAWING_POINT_LEN 12
+
+static inline uint16_t uavlink_drawing_point_decode(const uavlink_message_t *msg, uavlink_msg_drawing_point_t *uavlink_drawing_point)
+{
+	uint8_t len = msg->len < UAVLINK_MSG_ID_DRAWING_POINT_LEN ? msg->len : UAVLINK_MSG_ID_DRAWING_POINT_LEN;
+	memset(uavlink_drawing_point, 0, UAVLINK_MSG_ID_DRAWING_POINT_LEN);
+	memcpy(uavlink_drawing_point, _MAV_PAYLOAD(msg), UAVLINK_MSG_ID_DRAWING_POINT_LEN);
+}
+
+
 // Message helper define
 uint8_t _mav_trim_payload(const char *payload, uint8_t length)
 {
@@ -404,6 +422,7 @@ float get_distance_GPS(double lat, double lon, double lat_des, double lon_des)
 void handle_msg_manual_control(uavlink_message_t message);
 void handle_command(uavlink_message_t message);
 void handle_msg_waypoint(uavlink_message_t message);
+void handle_msg_drawing_point(uavlink_message_t message);
 
 // Function handle command
 void handle_cmd_arm_disarm(bool flag);

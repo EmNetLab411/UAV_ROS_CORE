@@ -8,6 +8,7 @@ project(uavlab411)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  rospy
   roscpp
   tf
   geometry_msgs
@@ -54,6 +55,7 @@ add_message_files(
   detect_object_msg.msg
   control_robot_msg.msg
   data_sensor_msg.msg
+  drawing_point_msg.msg
 )
 
 ## Generate services in the 'srv' folder

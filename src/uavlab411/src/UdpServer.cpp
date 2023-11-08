@@ -22,6 +22,7 @@ ros::Duration state_timeout;
 ros::ServiceClient takeoff_srv, nav_to_waypoint_srv, land_srv, nav_to_GPS_srv;
 
 // ROS Message
+uavlab411::drawing_point_msg drawing_point;  	// msg drawing points
 uavlab411::control_robot_msg msg_robot;		   // msg control robot
 mavros_msgs::State state;					   // State robot
 mavros_msgs::ManualControl manual_control_msg; // Manual control msg
@@ -38,6 +39,8 @@ ros::ServiceClient arming, set_mode;
 // Publisher
 ros::Publisher manual_control_pub;
 ros::Publisher control_robot_pub;
+ros::Publisher drawing_point_pub;
+
 bool check_receiver = false;
 double yaw_compass;
 
@@ -188,6 +191,18 @@ void handle_command(uavlink_message_t message)
 		break;
 	}
 }
+
+void handle_msg_drawing_point(uavlink_message_t message)
+{
+	uavlink_msg_drawing_point_t drawing_point_recv;
+	uavlink_drawing_point_decode(&message, &drawing_point_recv);
+	drawing_point.x = drawing_point_recv.x;
+	drawing_point.y = drawing_point_recv.y;
+	drawing_point.z = drawing_point_recv.z;
+	ROS_INFO("x: %f  y: %f  z: %f", drawing_point.x, drawing_point.y, drawing_point.z);
+	drawing_point_pub.publish(drawing_point);
+}
+
 void handle_msg_control_robot(uavlink_message_t message)
 {
 	uavlink_control_robot_t robot_msg_rev;
@@ -281,7 +296,6 @@ void handleGlobalPosition(const sensor_msgs::NavSatFix &n)
 // Handle sensor data from node sensor
 void handleSensorData(const uavlab411::data_sensor_msg &data_from_node)
 {
-	
 	uavlink_msg_sensor_data_t data;
 	char buf[300];
 	data.id = data_from_node.id;
@@ -517,6 +531,7 @@ void readingSocketThread()
 		{
 			if (!check_receiver)
 				check_receiver = true;
+			
 			uavlink_message_t message;
 			memcpy(&message, buff, bsize);
 			
@@ -535,6 +550,9 @@ void readingSocketThread()
 				break;
 			case UAVLINK_MSG_ID_WAYPOINT:
 				handle_msg_waypoint(message);
+				break;
+			case UAVLINK_MSG_ID_DRAWING_POINT:
+				handle_msg_drawing_point(message);
 				break;
 			default:
 				break;
@@ -561,6 +579,7 @@ int main(int argc, char **argv)
 	nh_priv.param("port", port, 12345);
 
 	// Initial publisher
+	drawing_point_pub = nh.advertise<uavlab411::drawing_point_msg>("uavlab411/drawing_point", 1);
 	manual_control_pub = nh.advertise<mavros_msgs::ManualControl>("mavros/manual_control/send", 1);
 	control_robot_pub = nh.advertise<uavlab411::control_robot_msg>("uavlab411/control_robot", 1);
 
