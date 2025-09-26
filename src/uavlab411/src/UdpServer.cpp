@@ -332,9 +332,9 @@ void send_drone_status()
     status.battery = battery_remaining_calculate(battery_msg.voltage);
     status.latitude = global_msg.latitude;
     status.longitude = global_msg.longitude;
-    status.pos_x = uavpose_msg.pose.position.x;
-    status.pos_y = uavpose_msg.pose.position.y;
-    status.pos_z = uavpose_msg.pose.position.z;
+    // status.pos_x = uavpose_msg.pose.position.x;
+    // status.pos_y = uavpose_msg.pose.position.y;
+    // status.pos_z = uavpose_msg.pose.position.z;
 
     uavlink_message_t msg;
     uavlink_drone_status_encode(&msg, &status);
@@ -344,8 +344,10 @@ void send_drone_status()
     writeSocketMessage(buf, len);
 
     // Debug log
-    ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f, X=%.2f, Y=%.2f, Z=%.2f",
-        status.altitude, status.battery, status.latitude, status.longitude, status.pos_x, status.pos_y, status.pos_z);
+    // ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f, X=%.2f, Y=%.2f, Z=%.2f",
+    //     status.altitude, status.battery, status.latitude, status.longitude, status.pos_x, status.pos_y, status.pos_z);
+	ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f",
+        status.altitude, status.battery, status.latitude, status.longitude);
 }
 
 // Thêm hàm callback cho timer gửi drone status
@@ -431,12 +433,17 @@ void handleUavPose(const geometry_msgs::PoseStampedConstPtr &_uavpose)
 	char buf[100];
 	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
 	writeSocketMessage(buf, len);
+
+	// Gửi drone status ngay khi có pose mới
+	send_drone_status();
 }
 
 // Handle battery state from UAV
 void handle_Battery_State(const sensor_msgs::BatteryState &bat)
 {
 	battery_msg = bat;
+	// Gửi drone status ngay khi có battery mới
+	send_drone_status();
 }
 void init()
 {

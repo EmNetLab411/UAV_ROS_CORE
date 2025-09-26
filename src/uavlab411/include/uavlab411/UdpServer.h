@@ -324,9 +324,9 @@ typedef struct __uavlink_drone_status_t
     int8_t battery;      // Phần trăm pin (%)
     double latitude;     // Vĩ độ hiện tại
     double longitude;    // Kinh độ hiện tại
-    float pos_x;         // Vị trí X local (m)
-    float pos_y;         // Vị trí Y local (m)
-    float pos_z;         // Vị trí Z local (m)
+    // float pos_x;         // Vị trí X local (m)
+    // float pos_y;         // Vị trí Y local (m)
+    // float pos_z;         // Vị trí Z local (m)
 } uavlink_drone_status_t;
 
 #define UAVLINK_MSG_ID_DRONE_STATUS 10
