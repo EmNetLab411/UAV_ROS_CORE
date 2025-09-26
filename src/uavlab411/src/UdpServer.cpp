@@ -41,30 +41,38 @@ ros::Publisher manual_control_pub;
 ros::Publisher control_robot_pub;
 bool check_receiver = false;
 
+// ROS Publisher for position in offboard
+ros::Publisher position_control_pub;
+geometry_msgs::PoseStamped position_cmd_msg;
+
+// Position control state
+bool position_control_active = false;
+ros::Time last_position_cmd_time;
+ros::Duration position_cmd_timeout = ros::Duration(2.0);
+
 void handle_cmd_set_mode(int mode)
 {
-	if (mode > end(mode_define) - begin(mode_define) - 1)
-	{
-		ROS_ERROR("Error calling set_mode, mode index invalid: %d", mode);
-	}
-	else
-	{
-		if (state.mode != mode_define[mode])
-		{
-			static mavros_msgs::SetMode sm;
-			sm.request.custom_mode = mode_define[mode];
+    if (mode >= 0 && mode < (int)(sizeof(mode_define)/sizeof(mode_define[0])))
+    {
+        if (state.mode != mode_define[mode])
+        {
+            mavros_msgs::SetMode sm;
+            sm.request.custom_mode = mode_define[mode];
 
-			if (!set_mode.call(sm))
-			{
-				ROS_INFO("Error calling set_mode service");
-				throw std::runtime_error("Error calling set_mode service");
-			}
-		}
-		else
-		{
-			ROS_INFO("UAV already in this mode");
-		}
-	}
+            if (!set_mode.call(sm))
+            {
+                ROS_ERROR("Error calling set_mode service");
+            }
+            else
+            {
+                ROS_INFO("Set mode to: %s", mode_define[mode].c_str());
+            }
+        }
+    }
+    else
+    {
+        ROS_ERROR("Invalid mode index: %d", mode);
+    }
 }
 
 
@@ -175,12 +183,23 @@ void handle_command(uavlink_message_t message)
 	case UAVLINK_CMD_TAKEOFF:
 		handle_cmd_takeoff((float)command_msg.param1);
 		break;
+
 	case UAVLINK_CMD_FLYTO:
 		handle_cmd_flyto((bool)command_msg.param1, (int)command_msg.param2, (int)command_msg.param3);
 		break;
+
 	case UAVLINK_CMD_LAND:
 		handle_cmd_land();
 		break;
+		//position control in offboard
+	case UAVLINK_CMD_POSITION_CONTROL_MODE:
+    	handle_cmd_position_control_mode((bool)command_msg.param1);
+    	break;
+
+	case UAVLINK_MSG_ID_DRONE_STATUS:
+		send_drone_status();
+		break;
+
 	default:
 		break;
 	}
@@ -200,6 +219,12 @@ void handle_msg_manual_control(uavlink_message_t message)
 {
 	uavlink_msg_manual_control manual_msg;
 	uavlink_manual_control_decode(&message, &manual_msg);
+	// manual_control_msg.x = manual_msg.x / 1000.0f;
+	// manual_control_msg.y = manual_msg.y / 1000.0f;
+	// manual_control_msg.z = manual_msg.z / 1000.0f;
+	// manual_control_msg.r = manual_msg.r / 1000.0f;
+
+	//Convert to fit MAVROS manual control
 	manual_control_msg.x = manual_msg.x;
 	manual_control_msg.y = manual_msg.y;
 	manual_control_msg.z = manual_msg.z;
@@ -207,7 +232,124 @@ void handle_msg_manual_control(uavlink_message_t message)
 
 	manual_control_pub.publish(manual_control_msg);
 }
-// Handle waupoint message
+
+/* ******************Offboard MODE********************** */
+
+// Function position control message
+void handle_msg_position_control(uavlink_message_t message)
+{
+    uavlink_position_control_t position_msg;
+    uavlink_position_control_decode(&message, &position_msg);
+
+	//Update Timer
+	last_position_cmd_time = ros::Time::now();
+    
+    ROS_INFO("Position control: x=%.2f, y=%.2f, z=%.2f, yaw=%.2f, frame=%d",
+             position_msg.x, position_msg.y, position_msg.z, position_msg.yaw, position_msg.frame);
+    
+    if (!position_control_active) {
+        ROS_WARN("Position control not active. Enable position control mode first.");
+        send_position_feedback(false, 0, 0, 0);
+        return;
+    }
+    
+    // Prepare message for ROS
+    position_cmd_msg.header.stamp = ros::Time::now();
+    position_cmd_msg.header.frame_id = "map";
+    
+    if (position_msg.frame == 0) { // Local frame
+        position_cmd_msg.pose.position.x = position_msg.x;
+        position_cmd_msg.pose.position.y = position_msg.y;
+        position_cmd_msg.pose.position.z = position_msg.z;
+    } else { // Global frame (GPS)
+        // For Clover drone, we'll use local frame primarily
+        ROS_WARN("Global frame position control not implemented. Using local frame.");
+        position_cmd_msg.pose.position.x = position_msg.x;
+        position_cmd_msg.pose.position.y = position_msg.y;
+        position_cmd_msg.pose.position.z = position_msg.z;
+    }
+    
+    // Convert yaw to quaternion (cách đơn giản không dùng tf2)
+    double cy = cos(position_msg.yaw * 0.5);
+    double sy = sin(position_msg.yaw * 0.5);
+    double cp = cos(0);
+    double sp = sin(0);
+    double cr = cos(0);
+    double sr = sin(0);
+    
+    position_cmd_msg.pose.orientation.w = cy * cp * cr + sy * sp * sr;
+    position_cmd_msg.pose.orientation.x = cy * cp * sr - sy * sp * cr;
+    position_cmd_msg.pose.orientation.y = sy * cp * sr + cy * sp * cr;
+    position_cmd_msg.pose.orientation.z = sy * cp * cr - cy * sp * sr;
+    
+    // Publish message
+    position_control_pub.publish(position_cmd_msg);
+    last_position_cmd_time = ros::Time::now();
+    
+    // Gửi feedback thành công
+    send_position_feedback(true, 0, 0, 0);
+}
+
+// Hàm bật/tắt chế độ position control
+void handle_cmd_position_control_mode(bool enable)
+{
+    if (enable) {
+        // Set mode to OFFBOARD để nhận position commands
+        handle_cmd_set_mode(3); // 3 = OFFBOARD
+        position_control_active = true;
+        ROS_INFO("Offboard control mode enabled");
+    } else {
+        // Return manual or posctl
+        handle_cmd_set_mode(0);
+        position_control_active = false;
+        ROS_INFO("Offboard control mode disabled");
+    }
+}
+
+// Function feedback to position
+void send_position_feedback(bool success, float error_x, float error_y, float error_z)
+{
+    uavlink_position_feedback_t feedback;
+    feedback.success = success ? 1 : 0;
+    feedback.error_x = error_x;
+    feedback.error_y = error_y;
+    feedback.error_z = error_z;
+    
+    uavlink_message_t msg;
+    uavlink_position_feedback_encode(&msg, &feedback);
+    
+    char buf[300];
+    uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
+    writeSocketMessage(buf, len);
+}
+/* *************************************************** */
+
+// Function send drone status
+void send_drone_status()
+{
+	uavlink_drone_status_t status;
+    status.altitude = uavpose_msg.pose.position.z;
+    status.battery = battery_remaining_calculate(battery_msg.voltage);
+    status.latitude = global_msg.latitude;
+    status.longitude = global_msg.longitude;
+    status.pos_x = uavpose_msg.pose.position.x;
+    status.pos_y = uavpose_msg.pose.position.y;
+    status.pos_z = uavpose_msg.pose.position.z;
+
+    uavlink_message_t msg;
+    uavlink_drone_status_encode(&msg, &status);
+
+    char buf[128];
+    uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
+    writeSocketMessage(buf, len);
+
+    // Debug log
+    ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f, X=%.2f, Y=%.2f, Z=%.2f",
+        status.altitude, status.battery, status.latitude, status.longitude, status.pos_x, status.pos_y, status.pos_z);
+}
+
+
+// Handle waypoint message
 void handle_msg_waypoint(uavlink_message_t message)
 {
 	uavlink_msg_waypoint_t waypoint;
@@ -454,6 +596,10 @@ void readingSocketThread()
 				handle_msg_manual_control(message);
 				break;
 
+			case UAVLINK_MSG_ID_POSITION_CONTROL:  // Position in Offboard Mode
+        		handle_msg_position_control(message);
+        		break;
+
 			case UAVLINK_MSG_ID_COMMAND:
 				handle_command(message);
 				break;
@@ -461,10 +607,13 @@ void readingSocketThread()
 			case UAVLINK_CONTROL_ROBOT_MSG_ID:
 				handle_msg_control_robot(message);
 				break;
+
 			case UAVLINK_MSG_ID_WAYPOINT:
 				handle_msg_waypoint(message);
 				break;
+
 			default:
+				ROS_WARN("Unknown message ID: %d", message.msgid);
 				break;
 			}
 		}
@@ -479,6 +628,18 @@ void writeSocketMessage(char buff[], int length)
 	}
 }
 
+// safety check for position active in Offboard
+void check_position_cmd_timeout(const ros::TimerEvent& e)
+{
+    if (position_control_active && (ros::Time::now() - last_position_cmd_time > position_cmd_timeout)) {
+        ROS_WARN("Position command timeout. Disabling position control.");
+        handle_cmd_position_control_mode(false);
+        
+        // Gửi feedback về timeout
+        send_position_feedback(false, 0, 0, 0);
+    }
+}
+
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "UdpSocket");
@@ -490,6 +651,8 @@ int main(int argc, char **argv)
 	// Initial publisher
 	manual_control_pub = nh.advertise<mavros_msgs::ManualControl>("mavros/manual_control/send", 1);
 	control_robot_pub = nh.advertise<uavlab411::control_robot_msg>("uavlab411/control_robot", 1);
+	// position pub in offboard
+	position_control_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 1);
 
 	// Initial subscribe
 	auto state_sub = nh.subscribe("mavros/state", 1, &handleState);
@@ -509,6 +672,8 @@ int main(int argc, char **argv)
 	// Timer
 	state_timeout = ros::Duration(nh_priv.param("state_timeout", 3.0));
 	arming_timeout = ros::Duration(nh_priv.param("arming_timeout", 4.0));
+	// POSITION TIMER In offboard
+	ros::Timer position_timeout_timer = nh.createTimer(ros::Duration(0.1), check_position_cmd_timeout);
 
 	init();
 	ros::spin();

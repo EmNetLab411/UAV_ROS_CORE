@@ -11,6 +11,8 @@
 #include <std_msgs/String.h>
 #include <std_srvs/Trigger.h>
 #include <geometry_msgs/PoseStamped.h>
+// #include <tf2/LinearMath/Quaternion.h>
+// #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/ManualControl.h>
@@ -29,6 +31,11 @@
 #pragma pack(1)
 using std::string;
 
+//ADD position in Offboard Mode
+#define UAVLINK_MSG_ID_POSITION_CONTROL 8
+#define UAVLINK_MSG_ID_POSITION_FEEDBACK 9
+#define UAVLINK_CMD_POSITION_CONTROL_MODE 27
+
 
 #define UAVLINK_CMD_TAKEOFF 22
 #define UAVLINK_CMD_ARM_DISARM 23
@@ -36,11 +43,38 @@ using std::string;
 #define UAVLINK_CMD_FLYTO 25
 #define UAVLINK_CMD_SET_MODE 26
 
+
+
 #define MAX_VOLTAGE 16
 #define MIN_VOLTAGE 14
 #define TIMEOUT(msg, timeout) (msg.header.stamp.isZero() || (ros::Time::now() - msg.header.stamp > timeout))
 
-string mode_define[] = {"MANUAL", "POSCTL", "OFFBOARD", "AUTO.LAND"};
+const string mode_define[] = {
+    "MANUAL",        // 0
+    "ALTCTL",        // 1
+    "POSCTL",        // 2
+    "OFFBOARD",      // 3
+    "STABILIZED",    // 4
+    "AUTO.MISSION",  // 5
+    "AUTO.LOITER",   // 6
+    "AUTO.RTL",      // 7
+    "ACRO",          // 8
+    "RATTITUDE"      // 9
+};
+
+// PX4 custom main modes (the actual values)
+enum PX4_CUSTOM_MAIN_MODE {
+    MANUAL = 1,
+    ALTCTL = 2,
+    POSCTL = 3,
+    AUTO = 4,
+    ACRO = 5,
+    OFFBOARD = 6,
+    STABILIZED = 7,
+    RATTITUDE = 8
+};
+
+
 
 void readingSocketThread();
 void writeSocketMessage(char *, int);
@@ -82,6 +116,9 @@ typedef struct __uavlink_message_t
 	uint8_t len;
 	uint8_t payload64[255];
 } uavlink_message_t;
+
+
+
 #define _MAV_PAYLOAD(msg) ((const char *)(&((msg)->payload64[0])))
 #define _MAV_PAYLOAD_NON_CONST(msg) ((char *)(&((msg)->payload64[0])))
 
@@ -219,7 +256,91 @@ static inline void uavlink_control_robot_decode(const uavlink_message_t *msg, ua
 	memset(state, 0, UAVLINK_CONTROL_ROBOT_MSG_LEN);
 	memcpy(state, _MAV_PAYLOAD(msg), len);
 }
+/* ******************************************** 
+***************OFFBOARD MODE*********************
+*********************************************** */
 
+typedef struct __uavlink_position_control_t
+{
+    float x;        // Position X (m)
+    float y;        // Position Y (m) 
+    float z;        // Position Z (m)
+    float yaw;      // Yaw angle (radians)
+    uint8_t frame;  // Coordinate frame (0: local, 1: global)
+} uavlink_position_control_t;
+#define UAVLINK_MSG_ID_POSITION_CONTROL_LEN 17
+
+typedef struct __uavlink_position_feedback_t
+{
+    uint8_t success;
+    float error_x;
+    float error_y;
+    float error_z;
+} uavlink_position_feedback_t;
+#define UAVLINK_MSG_ID_POSITION_FEEDBACK_LEN 13
+
+// Position Control encode
+static inline uint16_t uavlink_position_control_encode(uavlink_message_t *msg, const uavlink_position_control_t *position_control)
+{
+    uavlink_position_control_t packet;
+    packet.x = position_control->x;
+    packet.y = position_control->y;
+    packet.z = position_control->z;
+    packet.yaw = position_control->yaw;
+    packet.frame = position_control->frame;
+    
+    memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, UAVLINK_MSG_ID_POSITION_CONTROL_LEN);
+    msg->msgid = UAVLINK_MSG_ID_POSITION_CONTROL;
+    msg->len = UAVLINK_MSG_ID_POSITION_CONTROL_LEN;
+    return 1;
+}
+
+// Position Control decode
+static inline void uavlink_position_control_decode(const uavlink_message_t *msg, uavlink_position_control_t *position_control)
+{
+    memset(position_control, 0, UAVLINK_MSG_ID_POSITION_CONTROL_LEN);
+    memcpy(position_control, _MAV_PAYLOAD(msg), UAVLINK_MSG_ID_POSITION_CONTROL_LEN);
+}
+
+// Position Feedback encode
+static inline uint16_t uavlink_position_feedback_encode(uavlink_message_t *msg, const uavlink_position_feedback_t *position_feedback)
+{
+    uavlink_position_feedback_t packet;
+    packet.success = position_feedback->success;
+    packet.error_x = position_feedback->error_x;
+    packet.error_y = position_feedback->error_y;
+    packet.error_z = position_feedback->error_z;
+    
+    memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, UAVLINK_MSG_ID_POSITION_FEEDBACK_LEN);
+    msg->msgid = UAVLINK_MSG_ID_POSITION_FEEDBACK;
+    msg->len = UAVLINK_MSG_ID_POSITION_FEEDBACK_LEN;
+    return 1;
+}
+
+/***************** Drone State *******************/
+typedef struct __uavlink_drone_status_t
+{
+    float altitude;      // Độ cao hiện tại (m)
+    int8_t battery;      // Phần trăm pin (%)
+    double latitude;     // Vĩ độ hiện tại
+    double longitude;    // Kinh độ hiện tại
+    float pos_x;         // Vị trí X local (m)
+    float pos_y;         // Vị trí Y local (m)
+    float pos_z;         // Vị trí Z local (m)
+} uavlink_drone_status_t;
+
+#define UAVLINK_MSG_ID_DRONE_STATUS 10
+#define UAVLINK_MSG_ID_DRONE_STATUS_LEN (sizeof(uavlink_drone_status_t))
+
+static inline uint16_t uavlink_drone_status_encode(uavlink_message_t *msg, const uavlink_drone_status_t *status)
+{
+    memcpy(_MAV_PAYLOAD_NON_CONST(msg), status, UAVLINK_MSG_ID_DRONE_STATUS_LEN);
+    msg->msgid = UAVLINK_MSG_ID_DRONE_STATUS;
+    msg->len = UAVLINK_MSG_ID_DRONE_STATUS_LEN;
+    return 1;
+}
+
+/* **************WayPoint******************* */ 
 typedef struct __uavlink_msg_waypoint_t
 {
 	uint16_t type;
@@ -345,4 +466,12 @@ bool navigate_to_GPS(uavlink_msg_waypoint_t point, float tolerance);
 // Function navigate_to_waypoint
 bool navigate_to(uavlink_msg_waypoint_t point, float tolerance);
 void navigate_points_vector(void *type);
+
+// Function handle position in Offboard
+void handle_msg_position_control(uavlink_message_t message);
+void handle_cmd_position_control_mode(bool enable);
+void send_position_feedback(bool success, float error_x, float error_y, float error_z);
+
+// Function send drone status
+void send_drone_status();
 
