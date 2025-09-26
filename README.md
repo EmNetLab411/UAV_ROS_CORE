@@ -4,7 +4,7 @@ This is ros package for PX4 autoplot with remote control, offboard mode, Slam au
 ## Installation
 
 ```bash
-git clone https://github.com/minhnv17/UAV_ROS_CORE.git
+git clone https://github.com/phuoc-SET/UAV_ROS_CORE.git
 cd UAV_ROS_CORE
 catkin_make
 source devel/setup.bash
