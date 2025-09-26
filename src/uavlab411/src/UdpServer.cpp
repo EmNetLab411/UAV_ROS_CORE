@@ -244,11 +244,11 @@ void handle_msg_position_control(uavlink_message_t message)
 	//Update Timer
 	last_position_cmd_time = ros::Time::now();
     
-    ROS_INFO("Position control: x=%.2f, y=%.2f, z=%.2f, yaw=%.2f, frame=%d",
-             position_msg.x, position_msg.y, position_msg.z, position_msg.yaw, position_msg.frame);
+    // ROS_INFO("Position control: x=%.2f, y=%.2f, z=%.2f, yaw=%.2f, frame=%d",
+    //          position_msg.x, position_msg.y, position_msg.z, position_msg.yaw, position_msg.frame);
     
     if (!position_control_active) {
-        ROS_WARN("Position control not active. Enable position control mode first.");
+        // ROS_WARN("Position control not active. Enable position control mode first.");
         send_position_feedback(false, 0, 0, 0);
         return;
     }
@@ -322,7 +322,7 @@ void send_position_feedback(bool success, float error_x, float error_y, float er
     uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
     writeSocketMessage(buf, len);
 }
-/* *************************************************** */
+/* ************************* Function Drone Status ***********************************/
 
 // Function send drone status
 void send_drone_status()
@@ -348,6 +348,13 @@ void send_drone_status()
         status.altitude, status.battery, status.latitude, status.longitude, status.pos_x, status.pos_y, status.pos_z);
 }
 
+// Thêm hàm callback cho timer gửi drone status
+void drone_status_timer_cb(const ros::TimerEvent&)
+{
+    send_drone_status();
+}
+
+/*************************************************************************************************/
 
 // Handle waypoint message
 void handle_msg_waypoint(uavlink_message_t message)
@@ -674,7 +681,9 @@ int main(int argc, char **argv)
 	arming_timeout = ros::Duration(nh_priv.param("arming_timeout", 4.0));
 	// POSITION TIMER In offboard
 	ros::Timer position_timeout_timer = nh.createTimer(ros::Duration(0.1), check_position_cmd_timeout);
-
+	// Timer send drone status
+	ros::Timer drone_status_timer = nh.createTimer(ros::Duration(0.5), drone_status_timer_cb);
+	
 	init();
 	ros::spin();
 }
