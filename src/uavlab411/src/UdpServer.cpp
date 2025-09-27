@@ -25,6 +25,7 @@ uavlab411::control_robot_msg msg_robot;        // msg control robot
 mavros_msgs::State state;					   // State robot
 mavros_msgs::ManualControl manual_control_msg; // Manual control msg
 sensor_msgs::NavSatFix global_msg;			   // message from topic "/mavros/global_position/global"
+
 sensor_msgs::BatteryState battery_msg;		   // message from /mavros/battery
 
 // param
@@ -50,6 +51,9 @@ bool position_control_active = false;
 ros::Time last_position_cmd_time;
 ros::Duration position_cmd_timeout = ros::Duration(2.0);
 
+// Drone status
+double local_z = 0.0;   // giá trị độ cao
+
 void handle_cmd_set_mode(int mode)
 {
     if (mode >= 0 && mode < (int)(sizeof(mode_define)/sizeof(mode_define[0])))
@@ -74,8 +78,6 @@ void handle_cmd_set_mode(int mode)
         ROS_ERROR("Invalid mode index: %d", mode);
     }
 }
-
-
 
 void handle_cmd_arm_disarm(bool flag)
 {
@@ -200,6 +202,7 @@ void handle_command(uavlink_message_t message)
 		break;
 	}
 }
+
 void handle_msg_control_robot(uavlink_message_t message)
 {
 	uavlink_control_robot_t robot_msg_rev;
@@ -211,14 +214,11 @@ void handle_msg_control_robot(uavlink_message_t message)
 	msg_robot.step5 = robot_msg_rev.step5;
 	control_robot_pub.publish(msg_robot);
 }
+
 void handle_msg_manual_control(uavlink_message_t message)
 {
 	uavlink_msg_manual_control manual_msg;
 	uavlink_manual_control_decode(&message, &manual_msg);
-	// manual_control_msg.x = manual_msg.x / 1000.0f;
-	// manual_control_msg.y = manual_msg.y / 1000.0f;
-	// manual_control_msg.z = manual_msg.z / 1000.0f;
-	// manual_control_msg.r = manual_msg.r / 1000.0f;
 
 	//Convert to fit MAVROS manual control
 	manual_control_msg.x = manual_msg.x;
@@ -230,7 +230,6 @@ void handle_msg_manual_control(uavlink_message_t message)
 }
 
 /* ******************Offboard MODE********************** */
-
 // Function position control message
 void handle_msg_position_control(uavlink_message_t message)
 {
@@ -285,7 +284,6 @@ void handle_msg_position_control(uavlink_message_t message)
     // Gửi feedback thành công
     send_position_feedback(true, 0, 0, 0);
 }
-
 // Hàm bật/tắt chế độ position control
 void handle_cmd_position_control_mode(bool enable)
 {
@@ -301,7 +299,6 @@ void handle_cmd_position_control_mode(bool enable)
         ROS_INFO("Offboard control mode disabled");
     }
 }
-
 // Function feedback to position
 void send_position_feedback(bool success, float error_x, float error_y, float error_z)
 {
@@ -318,13 +315,13 @@ void send_position_feedback(bool success, float error_x, float error_y, float er
     uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
     writeSocketMessage(buf, len);
 }
-/* ************************* Function Drone Status ***********************************/
 
+/* ************************* Function Drone Status ***********************************/
 // Function send drone status
 void send_drone_status()
 {
 	uavlink_drone_status_t status;
-    status.altitude = uavpose_msg.pose.position.z;
+    status.altitude = local_z;  // Lấy độ cao từ biến toàn cục local_z
     status.battery = battery_remaining_calculate(battery_msg.voltage);
     status.latitude = global_msg.latitude;
     status.longitude = global_msg.longitude;
@@ -343,7 +340,11 @@ void send_drone_status()
     ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f, X=%.2f, Y=%.2f, Z=%.2f",
         status.altitude, status.battery, status.latitude, status.longitude, status.pos_x, status.pos_y, status.pos_z);
 }
-
+// Get altitude from uavpose_msg
+void handleLocalPose(const geometry_msgs::PoseStamped::ConstPtr& msg)
+{
+    local_z = msg->pose.position.z;  // lưu giá trị z
+}
 // Thêm hàm callback cho timer gửi drone status
 void drone_status_timer_cb(const ros::TimerEvent&)
 {
@@ -370,12 +371,10 @@ void handleState(const mavros_msgs::State &s)
 {
 	state = s;
 	uavlink_state_t send_state;
-	uavlink_drone_status_t drone_status;
 	send_state.armed = s.armed;
 	send_state.connected = s.connected;
 	send_state.mode = mode_to_int(s.mode);
 	send_state.battery_remaining = battery_remaining_calculate(battery_msg.voltage);
-	drone_status.battery = battery_remaining_calculate(battery_msg.voltage);
 
 	uavlink_message_t msg;
 	uavlink_state_encode(&msg, &send_state);
@@ -384,7 +383,6 @@ void handleState(const mavros_msgs::State &s)
 	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
 	writeSocketMessage(buf, len);
 }
-
 // Handle Local Position from UAV
 void handleLocalPosition(const nav_msgs::Odometry &o)
 {
@@ -406,7 +404,6 @@ void handleLocalPosition(const nav_msgs::Odometry &o)
 	writeSocketMessage(buf, len);
 	r.sleep();
 }
-
 // Handle global Posotion from UAV
 void handleGlobalPosition(const sensor_msgs::NavSatFix &n)
 {
@@ -430,12 +427,12 @@ void handleUavPose(const geometry_msgs::PoseStampedConstPtr &_uavpose)
 	uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
 	writeSocketMessage(buf, len);
 }
-
 // Handle battery state from UAV
 void handle_Battery_State(const sensor_msgs::BatteryState &bat)
 {
 	battery_msg = bat;
 }
+
 void init()
 {
 	// Thread for UDP soket read
@@ -481,6 +478,7 @@ bool navigate_to_local(uavlink_msg_waypoint_t point, float tolerance)
 		ros::Duration(0.2).sleep();
 	}
 }
+
 bool navigate_to_GPS(uavlink_msg_waypoint_t point, float tolerance)
 {
 	uavlab411::NavigateGlobal msg;
@@ -632,7 +630,6 @@ void writeSocketMessage(char buff[], int length)
 		int len = sendto(sockfd, (const char *)buff, length, 0, (const struct sockaddr *)&android_addr, android_addr_size);
 	}
 }
-
 // safety check for position active in Offboard
 void check_position_cmd_timeout(const ros::TimerEvent& e)
 {
@@ -665,6 +662,8 @@ int main(int argc, char **argv)
 	auto local_position_sub = nh.subscribe("/mavros/global_position/local", 1, &handleLocalPosition);
 	auto battery_sub = nh.subscribe("/mavros/battery", 1, &handle_Battery_State);
 	auto uavpose_sub = nh.subscribe("uavlab411/uavpose", 1, &handleUavPose);
+	// Altitude
+	ros::Subscriber local_pose_sub = nh.subscribe("/mavros/local_position/pose", 10, handleLocalPose);
 
 	// Service client
 	set_mode = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
