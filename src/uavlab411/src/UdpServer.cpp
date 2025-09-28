@@ -52,7 +52,10 @@ ros::Time last_position_cmd_time;
 ros::Duration position_cmd_timeout = ros::Duration(2.0);
 
 // Drone status
-double local_z = 0.0;   // giá trị độ cao
+double local_z = 0.0;   // altitude
+geometry_msgs::TwistStamped velocity_msg; // velocity
+sensor_msgs::Imu imu_msg; // orientation
+
 
 void handle_cmd_set_mode(int mode)
 {
@@ -328,6 +331,22 @@ void send_drone_status()
     status.pos_x = uavpose_msg.pose.position.x;
     status.pos_y = uavpose_msg.pose.position.y;
     status.pos_z = uavpose_msg.pose.position.z;
+	status.vx = velocity_msg.twist.linear.x;
+	status.vy = velocity_msg.twist.linear.y;
+	status.vz = velocity_msg.twist.linear.z;
+
+	// Lấy roll, pitch, yaw từ imu_msg
+    tf::Quaternion q(
+        imu_msg.orientation.x,
+        imu_msg.orientation.y,
+        imu_msg.orientation.z,
+        imu_msg.orientation.w
+    );
+    double roll, pitch, yaw;
+    tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    status.roll = roll;
+    status.pitch = pitch;
+    status.yaw = yaw;
 
     uavlink_message_t msg;
     uavlink_drone_status_encode(&msg, &status);
@@ -337,9 +356,13 @@ void send_drone_status()
     writeSocketMessage(buf, len);
 
     // Debug log
-    ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f, X=%.2f, Y=%.2f, Z=%.2f",
-        status.altitude, status.battery, status.latitude, status.longitude, status.pos_x, status.pos_y, status.pos_z);
+    ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f, X=%.2f, Y=%.2f, Z=%.2f, Vx=%.2f, Vy=%.2f, Vz=%.2f, Roll=%.2f, Pitch=%.2f, Yaw=%.2f",
+        status.altitude, status.battery, status.latitude, status.longitude,
+        status.pos_x, status.pos_y, status.pos_z,
+        status.vx, status.vy, status.vz,
+        status.roll, status.pitch, status.yaw);
 }
+
 // Get altitude from uavpose_msg
 void handleLocalPose(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
@@ -351,6 +374,17 @@ void drone_status_timer_cb(const ros::TimerEvent&)
     send_drone_status();
 }
 
+// Velocity
+void handleVelocity(const geometry_msgs::TwistStamped::ConstPtr& msg)
+{
+    velocity_msg = *msg;
+}
+
+// Orientation
+void handleImu(const sensor_msgs::Imu::ConstPtr& msg)
+{
+    imu_msg = *msg;
+}
 /*************************************************************************************************/
 
 // Handle waypoint message
@@ -664,6 +698,10 @@ int main(int argc, char **argv)
 	auto uavpose_sub = nh.subscribe("uavlab411/uavpose", 1, &handleUavPose);
 	// Altitude
 	ros::Subscriber local_pose_sub = nh.subscribe("/mavros/local_position/pose", 10, handleLocalPose);
+	// Velocity
+	auto velocity_sub = nh.subscribe("/mavros/local_position/velocity_local", 1, handleVelocity);
+	// Orientation
+    auto imu_sub = nh.subscribe("/mavros/imu/data", 1, handleImu);
 
 	// Service client
 	set_mode = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");

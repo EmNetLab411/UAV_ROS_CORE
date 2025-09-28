@@ -14,28 +14,18 @@ source devel/setup.bash
 ```bash
 roslaunch uavlab411 uavlink.launch
 ```
-## Navigate
-Example navigate in uavlab411/Example.
-```bash
-python3 navigate.py
-```
+# Update
 
-## Simulation
-We use native simulation from [Clover](https://clover.coex.tech/en/).
+**27/09/2025:**
 
-Simulation setup can be found [here](https://clover.coex.tech/en/simulation_native.html).
+- Handle sending control signals from VC App (MODE: Manual, OffBoard)
 
-Parameter change:
-```bash
-cd clover/clover/launch && vim clover.launch
-<arg name="aruco" default="true"/>
-cd clover/clover/launch && vim aruco.launch
-<arg name="aruco_detect" default="true"/>
-<arg name="aruco_map" default="true"/>
-<arg name="map" default="cmit.txt"/>
-```
+**28/09/2025:**
 
-Run simulation:
-```bash
-roslaunch clover_simulation simulator.launch
-```
+- Send Drone status to VC App:
+  - Battery percent
+  - Altitude
+  - Latitude
+  - Longitude
+  - Velocity (local, GPS)
+  - Orientation

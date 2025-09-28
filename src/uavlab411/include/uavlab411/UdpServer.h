@@ -11,8 +11,11 @@
 #include <std_msgs/String.h>
 #include <std_srvs/Trigger.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
 // #include <tf2/LinearMath/Quaternion.h>
 // #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <sensor_msgs/Imu.h>
+#include <tf/transform_datatypes.h>
 
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/ManualControl.h>
@@ -327,6 +330,12 @@ typedef struct __uavlink_drone_status_t
     float pos_x;         // Vị trí X local (m)
     float pos_y;         // Vị trí Y local (m)
     float pos_z;         // Vị trí Z local (m)
+	float vx;		// Vận tốc X (m/s) - local
+	float vy;		// Vận tốc Y (m/s) - local
+	float vz;		// Vận tốc Z (m/s) - local
+	float roll;	// Góc lật (radians)
+	float pitch;	// Góc nghiêng (radians)
+	float yaw;	// Góc quay (radians)
 } uavlink_drone_status_t;
 
 #define UAVLINK_MSG_ID_DRONE_STATUS 10
@@ -474,4 +483,6 @@ void send_position_feedback(bool success, float error_x, float error_y, float er
 
 // Function send drone status
 void send_drone_status();
+void handleVelocity(const geometry_msgs::TwistStamped::ConstPtr& msg);
+void handleImu(const sensor_msgs::Imu::ConstPtr& msg);
 
