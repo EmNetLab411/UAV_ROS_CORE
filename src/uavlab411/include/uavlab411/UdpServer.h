@@ -21,6 +21,7 @@
 #include <mavros_msgs/ManualControl.h>
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/SetMode.h>
+#include <mavros_msgs/OverrideRCIn.h>
 
 #include <vector>
 #include <array>
@@ -34,11 +35,13 @@
 #pragma pack(1)
 using std::string;
 
-//ADD position in Offboard Mode
+// ADD position in Offboard Mode
 #define UAVLINK_MSG_ID_POSITION_CONTROL 8
 #define UAVLINK_MSG_ID_POSITION_FEEDBACK 9
 #define UAVLINK_CMD_POSITION_CONTROL_MODE 27
 
+// RCIn - POSCTL, ALTCTL
+// #define UAVLINK_MSG_ID_RC_CHANNELS 11
 
 #define UAVLINK_CMD_TAKEOFF 22
 #define UAVLINK_CMD_ARM_DISARM 23
@@ -77,7 +80,24 @@ enum PX4_CUSTOM_MAIN_MODE {
     RATTITUDE = 8
 };
 
+// RC channels mapping
+// RC channels message (8 channels, uint16_t each)
+typedef struct __uavlink_rc_channels_t
+{
+    uint16_t chan1;
+    uint16_t chan2;
+    uint16_t chan3;
+    uint16_t chan4;
+    uint16_t chan5;
+    uint16_t chan6;
+    uint16_t chan7;
+    uint16_t chan8;
+} uavlink_rc_channels_t;
+#define UAVLINK_MSG_ID_RC_CHANNELS 11
+#define UAVLINK_MSG_ID_RC_CHANNELS_LEN (sizeof(uavlink_rc_channels_t))
 
+
+// End RC channels mapping
 
 void readingSocketThread();
 void writeSocketMessage(char *, int);
@@ -480,6 +500,9 @@ void navigate_points_vector(void *type);
 void handle_msg_position_control(uavlink_message_t message);
 void handle_cmd_position_control_mode(bool enable);
 void send_position_feedback(bool success, float error_x, float error_y, float error_z);
+
+// Function handle RCIn control
+void handle_msg_rc_channels(uavlink_message_t message);
 
 // Function send drone status
 void send_drone_status();

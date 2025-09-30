@@ -60,6 +60,9 @@
   <build_depend>tf</build_depend>
   <build_export_depend>tf</build_export_depend>
   <exec_depend>tf</exec_depend>
+  <build_depend>tf2</build_depend>
+  <build_export_depend>tf2</build_export_depend>
+  <exec_depend>tf2</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

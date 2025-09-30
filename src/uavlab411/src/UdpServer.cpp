@@ -1,4 +1,16 @@
 #include "uavlab411/UdpServer.h"
+
+// Ensure circle command macro exists (if header not in sync)
+#ifndef UAVLINK_CMD_CIRCLE
+#define UAVLINK_CMD_CIRCLE 28
+#endif
+
+// Forward declaration in case header wasn't included before switch usage
+void handle_cmd_circle(bool start);
+
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
 /* ---- Global variable ---- */
 // Socket server
 int sockfd;
@@ -9,6 +21,11 @@ std::vector<uavlink_msg_waypoint_t> waypoint_indoor_vector;
 std::vector<uavlink_msg_waypoint_t> waypoint_GPS_vector;
 bool check_busy;
 bool check_take_off;
+
+// circle control
+std::atomic<bool> circle_active(false);
+std::thread circle_thread;
+
 // uavpose
 geometry_msgs::PoseStamped uavpose_msg;
 ros::Duration _uavpose_timemout = ros::Duration(2.0);
@@ -25,8 +42,9 @@ uavlab411::control_robot_msg msg_robot;        // msg control robot
 mavros_msgs::State state;					   // State robot
 mavros_msgs::ManualControl manual_control_msg; // Manual control msg
 sensor_msgs::NavSatFix global_msg;			   // message from topic "/mavros/global_position/global"
-
 sensor_msgs::BatteryState battery_msg;		   // message from /mavros/battery
+
+mavros_msgs::OverrideRCIn rc_msg; // RC message
 
 // param
 int port;
@@ -40,6 +58,7 @@ ros::Subscriber state_sub;
 // Publisher
 ros::Publisher manual_control_pub;
 ros::Publisher control_robot_pub;
+ros::Publisher rc_override_pub; // add publisher RC override
 bool check_receiver = false;
 
 // ROS Publisher for position in offboard
@@ -172,9 +191,22 @@ void handle_cmd_flyto(bool allwp, int wpid, int type)
 
 void handle_command(uavlink_message_t message)
 {
+	// debug: show raw payload bytes and length
+    ROS_DEBUG("handle_command: msgid=%u len=%u", message.msgid, message.len);
+    std::string hex;
+    for (int i = 0; i < message.len; ++i)
+    {
+        char tmp[8];
+        snprintf(tmp, sizeof(tmp), "%02X ", (unsigned char)message.payload64[i]);
+        hex += tmp;
+    }
+    ROS_DEBUG("command payload: %s", hex.c_str());
+
+
 	uavlink_command_t command_msg;
 	uavlink_command_decode(&message, &command_msg);
 	ROS_INFO("cmd: %d", command_msg.command);
+
 	switch (command_msg.command)
 	{
 	case UAVLINK_CMD_SET_MODE:
@@ -200,6 +232,10 @@ void handle_command(uavlink_message_t message)
 	case UAVLINK_CMD_POSITION_CONTROL_MODE:
     	handle_cmd_position_control_mode((bool)command_msg.param1);
     	break;
+
+	case UAVLINK_CMD_CIRCLE:
+        handle_cmd_circle((bool)command_msg.param1); // param1=true to start, false to stop
+        break;
 
 	default:
 		break;
@@ -268,17 +304,22 @@ void handle_msg_position_control(uavlink_message_t message)
     }
     
     // Convert yaw to quaternion (cách đơn giản không dùng tf2)
-    double cy = cos(position_msg.yaw * 0.5);
-    double sy = sin(position_msg.yaw * 0.5);
-    double cp = cos(0);
-    double sp = sin(0);
-    double cr = cos(0);
-    double sr = sin(0);
+    // double cy = cos(position_msg.yaw * 0.5);
+    // double sy = sin(position_msg.yaw * 0.5);
+    // double cp = cos(0);
+    // double sp = sin(0);
+    // double cr = cos(0);
+    // double sr = sin(0);
     
-    position_cmd_msg.pose.orientation.w = cy * cp * cr + sy * sp * sr;
-    position_cmd_msg.pose.orientation.x = cy * cp * sr - sy * sp * cr;
-    position_cmd_msg.pose.orientation.y = sy * cp * sr + cy * sp * cr;
-    position_cmd_msg.pose.orientation.z = sy * cp * cr - cy * sp * sr;
+    // position_cmd_msg.pose.orientation.w = cy * cp * cr + sy * sp * sr;
+    // position_cmd_msg.pose.orientation.x = cy * cp * sr - sy * sp * cr;
+    // position_cmd_msg.pose.orientation.y = sy * cp * sr + cy * sp * cr;
+    // position_cmd_msg.pose.orientation.z = sy * cp * cr - cy * sp * sr;
+
+	// Use tf2 to create quaternion from yaw (keep roll/pitch = 0)
+    tf2::Quaternion q;
+    q.setRPY(0.0, 0.0, position_msg.yaw); // roll, pitch, yaw
+    position_cmd_msg.pose.orientation = tf2::toMsg(q);
     
     // Publish message
     position_control_pub.publish(position_cmd_msg);
@@ -318,6 +359,156 @@ void send_position_feedback(bool success, float error_x, float error_y, float er
     uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
     writeSocketMessage(buf, len);
 }
+/********************** Mission Function *******************************/
+// internal runner: radius (m), altitude (m), linear speed (m/s)
+static void circle_runner(double radius, double altitude, double speed)
+{
+    // ensure Offboard mode
+    // handle_cmd_set_mode(3); // request OFFBOARD
+
+    // wait small time for offboard to activate
+    ros::Time start_wait = ros::Time::now();
+    ros::Duration wait_timeout = ros::Duration(3.0);
+    while (ros::ok() && ros::Time::now() - start_wait < wait_timeout)
+    {
+        if (state.mode == std::string("OFFBOARD")) break;
+        ros::Duration(0.05).sleep();
+    }
+
+    // center point: use last known uavpose_msg; if zero fallback to local_position.pose
+    double cx = uavpose_msg.pose.position.x;
+    double cy = uavpose_msg.pose.position.y;
+    if (std::isnan(cx) || std::isnan(cy))
+    {
+        cx = 0.0; cy = 0.0;
+    }
+
+    double ang = 0.0;
+    // angular speed (rad/s) from linear speed v = r * omega -> omega = v / r
+    double omega = (radius > 1e-6) ? (speed / radius) : 0.5;
+
+    ros::Rate rate(20.0); // publish setpoints at 20 Hz
+    geometry_msgs::PoseStamped cmd;
+    cmd.header.frame_id = "map";
+
+    while (ros::ok() && circle_active.load())
+    {
+        ang += omega * (1.0 / 20.0); // dt = 1/20
+        double x = cx + radius * cos(ang);
+        double y = cy + radius * sin(ang);
+        double z = altitude;
+
+        // set position
+        cmd.header.stamp = ros::Time::now();
+        cmd.pose.position.x = x;
+        cmd.pose.position.y = y;
+        cmd.pose.position.z = z;
+
+        // yaw tangent direction (face along velocity)
+        double yaw = ang + M_PI_2;
+        double cyaw = cos(yaw * 0.5);
+        double syaw = sin(yaw * 0.5);
+        // roll/pitch zero
+        cmd.pose.orientation.w = cyaw;
+        cmd.pose.orientation.x = 0.0;
+        cmd.pose.orientation.y = 0.0;
+        cmd.pose.orientation.z = syaw;
+
+        position_control_pub.publish(cmd);
+
+        rate.sleep();
+    }
+
+    // when stopping, optionally publish hold position at center
+    if (ros::ok())
+    {
+        geometry_msgs::PoseStamped hold = cmd;
+        hold.pose.position.x = cx;
+        hold.pose.position.y = cy;
+        hold.pose.position.z = altitude;
+        position_control_pub.publish(hold);
+    }
+}
+
+// handler called from command parser
+void handle_cmd_circle(bool start)
+{
+    if (start)
+    {
+        if (circle_active.load())
+        {
+            ROS_WARN("Circle already active");
+            return;
+        }
+
+        // radius fixed 0.5m, altitude from current local pose or fallback 1.5, speed 0.5 m/s
+        double radius = 0.5;
+        double altitude = uavpose_msg.pose.position.z;
+        if (std::isnan(altitude) || altitude < 0.1) altitude = 1.5;
+        double speed = 0.5;
+
+        circle_active.store(true);
+        circle_thread = std::thread(circle_runner, radius, altitude, speed);
+        circle_thread.detach();
+
+        ROS_INFO("Started circle: radius=%.2fm alt=%.2fm speed=%.2fm/s", radius, altitude, speed);
+    }
+    else
+    {
+        if (!circle_active.load())
+        {
+            ROS_WARN("Circle not active");
+            return;
+        }
+        circle_active.store(false);
+        ROS_INFO("Stopping circle");
+        // thread will exit on next loop iteration
+    }
+}
+
+/* ************************* Function RC Control ***********************************/
+
+// decode implementation for RC channels (placed in .cpp so uavlink types/macros are available)
+static inline void uavlink_rc_channels_decode(const uavlink_message_t *msg, uavlink_rc_channels_t *rc)
+{
+    if (!msg || !rc) return;
+    uint8_t len = msg->len < UAVLINK_MSG_ID_RC_CHANNELS_LEN ? msg->len : UAVLINK_MSG_ID_RC_CHANNELS_LEN;
+    memset(rc, 0, UAVLINK_MSG_ID_RC_CHANNELS_LEN);
+    memcpy(rc, _MAV_PAYLOAD(msg), len);
+}
+
+// Handler cho RC channels (uavlink -> mavros OverrideRCIn)
+void handle_msg_rc_channels(uavlink_message_t message)
+{
+    uavlink_rc_channels_t rc;
+    uavlink_rc_channels_decode(&message, &rc);
+
+    // mavros_msgs::OverrideRCIn uses fixed-size boost::array<unsigned short, 18>
+    // Gán 8 channel đầu, phần còn lại set = 0 (không override)
+    // Note: MAVROS expects values in PWM (~1000-2000). Map if needed.
+    rc_msg.channels[0] = rc.chan1;
+    rc_msg.channels[1] = rc.chan2;
+    rc_msg.channels[2] = rc.chan3;
+    rc_msg.channels[3] = rc.chan4;
+    rc_msg.channels[4] = rc.chan5;
+    rc_msg.channels[5] = rc.chan6;
+    rc_msg.channels[6] = rc.chan7;
+    rc_msg.channels[7] = rc.chan8;
+    // zero remaining channels
+    for (size_t i = 8; i < rc_msg.channels.size(); ++i)
+    {
+        rc_msg.channels[i] = 0;
+    }
+
+    // publish to MAVROS
+    rc_override_pub.publish(rc_msg);
+
+    // ROS_INFO("[RC] Override published ch1=%u ch2=%u ch3=%u ch4=%u ch5=%u ch6=%u ch7=%u ch8=%u",
+    //          (unsigned)rc_msg.channels[0], (unsigned)rc_msg.channels[1],
+    //          (unsigned)rc_msg.channels[2], (unsigned)rc_msg.channels[3],
+    //          (unsigned)rc_msg.channels[4], (unsigned)rc_msg.channels[5],
+    //          (unsigned)rc_msg.channels[6], (unsigned)rc_msg.channels[7]);
+}
 
 /* ************************* Function Drone Status ***********************************/
 // Function send drone status
@@ -356,11 +547,11 @@ void send_drone_status()
     writeSocketMessage(buf, len);
 
     // Debug log
-    ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f, X=%.2f, Y=%.2f, Z=%.2f, Vx=%.2f, Vy=%.2f, Vz=%.2f, Roll=%.2f, Pitch=%.2f, Yaw=%.2f",
-        status.altitude, status.battery, status.latitude, status.longitude,
-        status.pos_x, status.pos_y, status.pos_z,
-        status.vx, status.vy, status.vz,
-        status.roll, status.pitch, status.yaw);
+    // ROS_INFO("[DEBUG] Drone status sent: Alt=%.2f, Bat=%d%%, Lat=%.7f, Lon=%.7f, X=%.2f, Y=%.2f, Z=%.2f, Vx=%.2f, Vy=%.2f, Vz=%.2f, Roll=%.2f, Pitch=%.2f, Yaw=%.2f",
+    //     status.altitude, status.battery, status.latitude, status.longitude,
+    //     status.pos_x, status.pos_y, status.pos_z,
+    //     status.vx, status.vy, status.vz,
+    //     status.roll, status.pitch, status.yaw);
 }
 
 // Get altitude from uavpose_msg
@@ -637,6 +828,10 @@ void readingSocketThread()
         		handle_msg_position_control(message);
         		break;
 
+			case UAVLINK_MSG_ID_RC_CHANNELS: // message RC
+                handle_msg_rc_channels(message);
+                break;
+
 			case UAVLINK_MSG_ID_COMMAND:
 				handle_command(message);
 				break;
@@ -687,6 +882,8 @@ int main(int argc, char **argv)
 	// Initial publisher
 	manual_control_pub = nh.advertise<mavros_msgs::ManualControl>("mavros/manual_control/send", 1);
 	control_robot_pub = nh.advertise<uavlab411::control_robot_msg>("uavlab411/control_robot", 1);
+	rc_override_pub = nh.advertise<mavros_msgs::OverrideRCIn>("mavros/rc/override", 1); // register publisher RC override
+
 	// position pub in offboard
 	position_control_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 1);
 
