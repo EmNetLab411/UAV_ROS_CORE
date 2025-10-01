@@ -16,11 +16,11 @@ roslaunch uavlab411 uavlink.launch
 ```
 # Update
 
-**27/09/2025:**
+### 27/09/2025
 
 - Handle sending control signals from VC App (MODE: Manual, OffBoard)
 
-**28/09/2025:**
+### 28/09/2025
 
 - Send Drone status to VC App:
   - Battery percent
@@ -29,3 +29,9 @@ roslaunch uavlab411 uavlink.launch
   - Longitude
   - Velocity (local, GPS)
   - Orientation
+
+### 30/09/2025
+
+- Build function handle receive mission control from VC App
+  - Circle Flight: implement in drone, receive signal control from VCApp
+- Update send local position (home setup at position takeoff point)

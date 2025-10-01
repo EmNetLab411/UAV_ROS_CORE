@@ -71,7 +71,10 @@ ros::Time last_position_cmd_time;
 ros::Duration position_cmd_timeout = ros::Duration(2.0);
 
 // Drone status
+double local_x = 0.0;   // local x
+double local_y = 0.0;   // local y
 double local_z = 0.0;   // altitude
+
 geometry_msgs::TwistStamped velocity_msg; // velocity
 sensor_msgs::Imu imu_msg; // orientation
 
@@ -209,36 +212,36 @@ void handle_command(uavlink_message_t message)
 
 	switch (command_msg.command)
 	{
-	case UAVLINK_CMD_SET_MODE:
-		handle_cmd_set_mode((int)command_msg.param1);
-		break;
+		case UAVLINK_CMD_SET_MODE:
+			handle_cmd_set_mode((int)command_msg.param1);
+			break;
 
-	case UAVLINK_CMD_ARM_DISARM:
-		handle_cmd_arm_disarm((bool)command_msg.param1);
-		break;
+		case UAVLINK_CMD_ARM_DISARM:
+			handle_cmd_arm_disarm((bool)command_msg.param1);
+			break;
 
-	case UAVLINK_CMD_TAKEOFF:
-		handle_cmd_takeoff((float)command_msg.param1);
-		break;
+		case UAVLINK_CMD_TAKEOFF:
+			handle_cmd_takeoff((float)command_msg.param1);
+			break;
 
-	case UAVLINK_CMD_FLYTO:
-		handle_cmd_flyto((bool)command_msg.param1, (int)command_msg.param2, (int)command_msg.param3);
-		break;
+		case UAVLINK_CMD_FLYTO:
+			handle_cmd_flyto((bool)command_msg.param1, (int)command_msg.param2, (int)command_msg.param3);
+			break;
 
-	case UAVLINK_CMD_LAND:
-		handle_cmd_land();
-		break;
-		//position control in offboard
-	case UAVLINK_CMD_POSITION_CONTROL_MODE:
-    	handle_cmd_position_control_mode((bool)command_msg.param1);
-    	break;
+		case UAVLINK_CMD_LAND:
+			handle_cmd_land();
+			break;
+			//position control in offboard
+		case UAVLINK_CMD_POSITION_CONTROL_MODE:
+			handle_cmd_position_control_mode((bool)command_msg.param1);
+			break;
 
-	case UAVLINK_CMD_CIRCLE:
-        handle_cmd_circle((bool)command_msg.param1); // param1=true to start, false to stop
-        break;
+		case UAVLINK_CMD_CIRCLE:
+			handle_cmd_circle((bool)command_msg.param1); // param1=true to start, false to stop
+			break;
 
-	default:
-		break;
+		default:
+			break;
 	}
 }
 
@@ -295,7 +298,8 @@ void handle_msg_position_control(uavlink_message_t message)
         position_cmd_msg.pose.position.x = position_msg.x;
         position_cmd_msg.pose.position.y = position_msg.y;
         position_cmd_msg.pose.position.z = position_msg.z;
-    } else { // Global frame (GPS)
+    } else {
+        // Global frame (GPS)
         // For Clover drone, we'll use local frame primarily
         ROS_WARN("Global frame position control not implemented. Using local frame.");
         position_cmd_msg.pose.position.x = position_msg.x;
@@ -376,8 +380,11 @@ static void circle_runner(double radius, double altitude, double speed)
     }
 
     // center point: use last known uavpose_msg; if zero fallback to local_position.pose
-    double cx = uavpose_msg.pose.position.x;
-    double cy = uavpose_msg.pose.position.y;
+    // double cx = uavpose_msg.pose.position.x;
+    // double cy = uavpose_msg.pose.position.y;
+	double cx = local_x;
+	double cy = local_y;
+	
     if (std::isnan(cx) || std::isnan(cy))
     {
         cx = 0.0; cy = 0.0;
@@ -519,9 +526,11 @@ void send_drone_status()
     status.battery = battery_remaining_calculate(battery_msg.voltage);
     status.latitude = global_msg.latitude;
     status.longitude = global_msg.longitude;
-    status.pos_x = uavpose_msg.pose.position.x;
-    status.pos_y = uavpose_msg.pose.position.y;
-    status.pos_z = uavpose_msg.pose.position.z;
+
+    status.pos_x = local_x;
+    status.pos_y = local_y;
+    status.pos_z = local_z;
+
 	status.vx = velocity_msg.twist.linear.x;
 	status.vy = velocity_msg.twist.linear.y;
 	status.vz = velocity_msg.twist.linear.z;
@@ -557,6 +566,8 @@ void send_drone_status()
 // Get altitude from uavpose_msg
 void handleLocalPose(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
+	local_x = msg->pose.position.x;  // lưu giá trị x
+	local_y = msg->pose.position.y;  // lưu giá trị y
     local_z = msg->pose.position.z;  // lưu giá trị z
 }
 // Thêm hàm callback cho timer gửi drone status
