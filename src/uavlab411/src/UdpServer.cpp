@@ -65,6 +65,10 @@ bool check_receiver = false;
 ros::Publisher position_control_pub;
 geometry_msgs::PoseStamped position_cmd_msg;
 
+// velocity control publishers offboard mode - get data for AI training
+ros::Publisher vel_cmd_pub_stamped;    // /mavros/setpoint_velocity/cmd_vel (TwistStamped)
+ros::Publisher vel_cmd_pub_unstamped;  // /mavros/setpoint_velocity/cmd_vel_unstamped (Twist)
+
 // Position control state
 bool position_control_active = false;
 ros::Time last_position_cmd_time;
@@ -245,6 +249,24 @@ void handle_command(uavlink_message_t message)
 	}
 }
 
+// Helper: lấy yaw hiện tại (rad) từ IMU; fallback = 0 nếu quaternion không hợp lệ - #AI
+static inline double get_current_yaw()
+{
+    const auto& o = imu_msg.orientation;
+    double qx = o.x, qy = o.y, qz = o.z, qw = o.w;
+    double norm = std::sqrt(qx*qx + qy*qy + qz*qz + qw*qw);
+    if (norm < 0.9 || norm > 1.1 ||
+        std::isnan(qx) || std::isnan(qy) || std::isnan(qz) || std::isnan(qw))
+    {
+        return 0.0;
+    }
+    tf::Quaternion q(qx, qy, qz, qw);
+    double roll, pitch, yaw;
+    tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    return yaw; // ENU yaw
+}
+
+
 void handle_msg_control_robot(uavlink_message_t message)
 {
 	uavlink_control_robot_t robot_msg_rev;
@@ -272,6 +294,8 @@ void handle_msg_manual_control(uavlink_message_t message)
 }
 
 /* ******************Offboard MODE********************** */
+
+
 // Function position control message
 void handle_msg_position_control(uavlink_message_t message)
 {
@@ -332,7 +356,7 @@ void handle_msg_position_control(uavlink_message_t message)
     // Gửi feedback thành công
     send_position_feedback(true, 0, 0, 0);
 }
-// Hàm bật/tắt chế độ position control
+// Function on/off position control Offboard
 void handle_cmd_position_control_mode(bool enable)
 {
     if (enable) {
@@ -342,7 +366,7 @@ void handle_cmd_position_control_mode(bool enable)
         ROS_INFO("Offboard control mode enabled");
     } else {
         // Return manual or posctl
-        handle_cmd_set_mode(0);
+        // handle_cmd_set_mode(0);
         position_control_active = false;
         ROS_INFO("Offboard control mode disabled");
     }
@@ -363,6 +387,50 @@ void send_position_feedback(bool success, float error_x, float error_y, float er
     uint16_t len = uavlink_msg_to_send_buffer((uint8_t *)buf, &msg);
     writeSocketMessage(buf, len);
 }
+
+// Function velocity control message - #AI training
+void handle_msg_velocity_control(uavlink_message_t message)
+{
+    uavlink_velocity_control_t vc;
+    uavlink_velocity_control_decode(&message, &vc);
+
+	ROS_INFO("[VELOCITY] vx=%.2f vy=%.2f vz=%.2f yaw_rate=%.2f frame=%d",
+             vc.vx, vc.vy, vc.vz, vc.yaw_rate, vc.frame);
+
+    geometry_msgs::TwistStamped ts;
+    ts.header.stamp = ros::Time::now();
+
+    // Chuẩn Clover: ENU local frame ("map")
+    // Nếu client gửi body frame (frame==1), transform body -> ENU bằng yaw hiện tại
+    double vx_enu = vc.vx;
+    double vy_enu = vc.vy;
+    double vz_enu = vc.vz;
+
+    if (vc.frame == 1) {
+        double yaw = get_current_yaw();
+        double c = std::cos(yaw), s = std::sin(yaw);
+        // Body(X,Y) -> ENU(X,Y)
+        double x_e = c * vc.vx - s * vc.vy;
+        double y_e = s * vc.vx + c * vc.vy;
+        vx_enu = x_e;
+        vy_enu = y_e;
+        // z giữ nguyên (body Z song song ENU Z khi roll/pitch nhỏ)
+    }
+
+    ts.header.frame_id = "map"; // publish trong ENU local frame
+    ts.twist.linear.x  = vx_enu;
+    ts.twist.linear.y  = vy_enu;
+    ts.twist.linear.z  = vz_enu;
+    ts.twist.angular.x = 0.0;
+    ts.twist.angular.y = 0.0;
+    ts.twist.angular.z = vc.yaw_rate; // yaw rate (rad/s)
+
+    if (vel_cmd_pub_stamped) vel_cmd_pub_stamped.publish(ts);
+
+    geometry_msgs::Twist t = ts.twist;
+    if (vel_cmd_pub_unstamped) vel_cmd_pub_unstamped.publish(t);
+}
+
 /********************** Mission Function *******************************/
 // internal runner: radius (m), altitude (m), linear speed (m/s)
 static void circle_runner(double radius, double altitude, double speed)
@@ -847,6 +915,10 @@ void readingSocketThread()
 				handle_command(message);
 				break;
 
+			case UAVLINK_MSG_ID_VELOCITY_CONTROL:
+				handle_msg_velocity_control(message);
+				break;
+
 			case UAVLINK_CONTROL_ROBOT_MSG_ID:
 				handle_msg_control_robot(message);
 				break;
@@ -897,6 +969,9 @@ int main(int argc, char **argv)
 
 	// position pub in offboard
 	position_control_pub = nh.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 1);
+	// velocity pubs (Clover/MAVROS)
+	vel_cmd_pub_stamped   = nh.advertise<geometry_msgs::TwistStamped>("mavros/setpoint_velocity/cmd_vel", 10);
+	vel_cmd_pub_unstamped = nh.advertise<geometry_msgs::Twist>("mavros/setpoint_velocity/cmd_vel_unstamped", 10);
 
 	// Initial subscribe
 	auto state_sub = nh.subscribe("mavros/state", 1, &handleState);

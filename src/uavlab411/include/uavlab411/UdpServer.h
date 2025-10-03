@@ -12,6 +12,7 @@
 #include <std_srvs/Trigger.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/Twist.h>
 // #include <tf2/LinearMath/Quaternion.h>
 // #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <sensor_msgs/Imu.h>
@@ -79,6 +80,21 @@ enum PX4_CUSTOM_MAIN_MODE {
     STABILIZED = 7,
     RATTITUDE = 8
 };
+
+/* ******************************************** 
+*************** VELOCITY CONTROL ***************
+*********************************************** */
+typedef struct __uavlink_velocity_control_t
+{
+    float vx;       // linear.x (m/s)
+    float vy;       // linear.y (m/s)
+    float vz;       // linear.z (m/s)
+    float yaw_rate; // angular.z (rad/s)
+    uint8_t frame;  // 0: ENU local (map), 1: body
+} uavlink_velocity_control_t;
+
+#define UAVLINK_MSG_ID_VELOCITY_CONTROL 12
+#define UAVLINK_MSG_ID_VELOCITY_CONTROL_LEN 17
 
 // RC channels mapping
 // RC channels message (8 channels, uint16_t each)
@@ -438,6 +454,13 @@ static inline void uavlink_command_decode(const uavlink_message_t *msg, uavlink_
 	memcpy(&uavlink_command->param4, _MAV_PAYLOAD(msg) + (index += 4), 4);
 }
 
+// Function velocity control message - #AI training
+static inline void uavlink_velocity_control_decode(const uavlink_message_t *msg, uavlink_velocity_control_t *vc)
+{
+    memset(vc, 0, UAVLINK_MSG_ID_VELOCITY_CONTROL_LEN);
+    memcpy(vc, _MAV_PAYLOAD(msg), UAVLINK_MSG_ID_VELOCITY_CONTROL_LEN);
+}
+
 // Message helper define
 uint8_t _mav_trim_payload(const char *payload, uint8_t length)
 {
@@ -508,4 +531,7 @@ void handle_msg_rc_channels(uavlink_message_t message);
 void send_drone_status();
 void handleVelocity(const geometry_msgs::TwistStamped::ConstPtr& msg);
 void handleImu(const sensor_msgs::Imu::ConstPtr& msg);
+
+// Function handle velocity control
+void handle_msg_velocity_control(uavlink_message_t message);
 
