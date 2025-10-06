@@ -394,8 +394,8 @@ void handle_msg_velocity_control(uavlink_message_t message)
     uavlink_velocity_control_t vc;
     uavlink_velocity_control_decode(&message, &vc);
 
-	ROS_INFO("[VELOCITY] vx=%.2f vy=%.2f vz=%.2f yaw_rate=%.2f frame=%d",
-             vc.vx, vc.vy, vc.vz, vc.yaw_rate, vc.frame);
+	// ROS_INFO("[VELOCITY] vx=%.2f vy=%.2f vz=%.2f yaw_rate=%.2f frame=%d",
+    //          vc.vx, vc.vy, vc.vz, vc.yaw_rate, vc.frame);
 
     geometry_msgs::TwistStamped ts;
     ts.header.stamp = ros::Time::now();
