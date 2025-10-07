@@ -82,6 +82,27 @@ double local_z = 0.0;   // altitude
 geometry_msgs::TwistStamped velocity_msg; // velocity
 sensor_msgs::Imu imu_msg; // orientation
 
+// Altitude hold (minimal)
+static bool   alt_hold_enable = true;
+static double alt_target_z    = 1.5;  // m (ENU up)
+static double kp_z            = 1.0;
+static double kd_z            = 0.6;
+static double max_z_vel       = 0.5;  // m/s
+static bool   invert_z_sign   = false;
+
+static inline double clampd(double v, double lo, double hi) {
+    return (v < lo) ? lo : ((v > hi) ? hi : v);
+}
+
+// PD giữ độ cao: dùng local_z (đã cập nhật ở handleLocalPose) và vz đo từ /mavros/local_position/velocity_local
+static inline double compute_vz_hold() {
+    const double z_now   = local_z;                       // m
+    const double vz_meas = velocity_msg.twist.linear.z;   // m/s (ENU)
+    const double err  = alt_target_z - z_now;             // ENU up
+    double vz_cmd = kp_z * err - kd_z * vz_meas;          // PD
+    if (invert_z_sign) vz_cmd = -vz_cmd;
+    return clampd(vz_cmd, -max_z_vel, max_z_vel);
+}
 
 void handle_cmd_set_mode(int mode)
 {
@@ -420,7 +441,11 @@ void handle_msg_velocity_control(uavlink_message_t message)
     ts.header.frame_id = "map"; // publish trong ENU local frame
     ts.twist.linear.x  = vx_enu;
     ts.twist.linear.y  = vy_enu;
-    ts.twist.linear.z  = vz_enu;
+
+	// giữ độ cao nếu alt_hold_enable=true
+    // ts.twist.linear.z  = vz_enu;
+	ts.twist.linear.z  = alt_hold_enable ? compute_vz_hold() : vz_enu;
+
     ts.twist.angular.x = 0.0;
     ts.twist.angular.y = 0.0;
     ts.twist.angular.z = vc.yaw_rate; // yaw rate (rad/s)
@@ -961,6 +986,16 @@ int main(int argc, char **argv)
 
 	// param
 	nh_priv.param("port", port, 12345);
+
+	// altitude hold param
+	nh_priv.param("alt_hold/enable",   alt_hold_enable, true);
+	nh_priv.param("alt_hold/target_z", alt_target_z,    1.0);
+	nh_priv.param("alt_hold/kp",       kp_z,            1.0);
+	nh_priv.param("alt_hold/kd",       kd_z,            0.6);
+	nh_priv.param("alt_hold/max_vz",   max_z_vel,       0.5);
+	nh_priv.param("alt_hold/invert_z", invert_z_sign,   false);
+	ROS_INFO("[UdpServer] AltHold: en=%s z=%.2f kp=%.2f kd=%.2f max_vz=%.2f invz=%s",
+			alt_hold_enable ? "true":"false", alt_target_z, kp_z, kd_z, max_z_vel, invert_z_sign ? "true":"false");
 
 	// Initial publisher
 	manual_control_pub = nh.advertise<mavros_msgs::ManualControl>("mavros/manual_control/send", 1);

@@ -61,7 +61,7 @@ const string mode_define[] = {
     "ALTCTL",        // 1
     "POSCTL",        // 2
     "OFFBOARD",      // 3
-    "STABILIZED",    // 4
+    "AUTO.LAND",     // 4
     "AUTO.MISSION",  // 5
     "AUTO.LOITER",   // 6
     "AUTO.RTL",      // 7
