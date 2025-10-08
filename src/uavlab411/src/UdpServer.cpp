@@ -10,6 +10,8 @@ void handle_cmd_circle(bool start);
 
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <std_srvs/SetBool.h>
+
 
 /* ---- Global variable ---- */
 // Socket server
@@ -21,6 +23,8 @@ std::vector<uavlink_msg_waypoint_t> waypoint_indoor_vector;
 std::vector<uavlink_msg_waypoint_t> waypoint_GPS_vector;
 bool check_busy;
 bool check_take_off;
+
+
 
 // circle control
 std::atomic<bool> circle_active(false);
@@ -36,6 +40,9 @@ ros::Duration state_timeout;
 
 // ROS Service
 ros::ServiceClient takeoff_srv, nav_to_waypoint_srv, land_srv, nav_to_GPS_srv;
+
+// Training data record 
+ros::ServiceClient dataset_toggle_srv; // for /dataset_logger/toggle
 
 // ROS Message
 uavlab411::control_robot_msg msg_robot;        // msg control robot
@@ -82,9 +89,13 @@ double local_z = 0.0;   // altitude
 geometry_msgs::TwistStamped velocity_msg; // velocity
 sensor_msgs::Imu imu_msg; // orientation
 
+// Setup Vx override for training
+static bool   vx_override_enable = false;
+static double vx_override_value  = 0.05; // m/s
+
 // Altitude hold (minimal)
 static bool   alt_hold_enable = true;
-static double alt_target_z    = 1.5;  // m (ENU up)
+static double alt_target_z    = 1.0;  // m (ENU up)
 static double kp_z            = 1.0;
 static double kd_z            = 0.6;
 static double max_z_vel       = 0.5;  // m/s
@@ -265,6 +276,30 @@ void handle_command(uavlink_message_t message)
 			handle_cmd_circle((bool)command_msg.param1); // param1=true to start, false to stop
 			break;
 
+		case UAVLINK_CMD_TRAIN_TOGGLE: {
+			bool enable = (bool)command_msg.param1;     // 1=bật, 0=tắt
+			if (!dataset_toggle_srv.exists()) {
+				dataset_toggle_srv.waitForExistence(ros::Duration(2.0));
+			}
+			std_srvs::SetBool srv; srv.request.data = enable;
+			if (dataset_toggle_srv.call(srv)) {
+				ROS_INFO("[UdpServer] Training logging %s (%s)",
+						enable ? "ENABLED" : "DISABLED",
+						srv.response.message.c_str());
+			} else {
+				ROS_ERROR("[UdpServer] Failed to call /dataset_logger/toggle");
+			}
+			break;
+		}
+
+		case UAVLINK_CMD_VX_OVERRIDE: {
+			bool en = static_cast<bool>(command_msg.param1);  // 1=bật, 0=tắt
+			vx_override_enable = en;
+			ROS_INFO("[UdpServer] vx override %s (default vx=%.3f m/s)",
+					en ? "ENABLED" : "DISABLED", vx_override_value);
+			break;
+		}
+
 		default:
 			break;
 	}
@@ -439,6 +474,12 @@ void handle_msg_velocity_control(uavlink_message_t message)
     }
 
     ts.header.frame_id = "map"; // publish trong ENU local frame
+
+	// Apply Vx override if enabled (for training) - Y tien, x ngang
+	if (vx_override_enable) 
+	{
+		vx_enu = vx_override_value;
+	}
     ts.twist.linear.x  = vx_enu;
     ts.twist.linear.y  = vy_enu;
 
@@ -994,8 +1035,17 @@ int main(int argc, char **argv)
 	nh_priv.param("alt_hold/kd",       kd_z,            0.6);
 	nh_priv.param("alt_hold/max_vz",   max_z_vel,       0.5);
 	nh_priv.param("alt_hold/invert_z", invert_z_sign,   false);
-	ROS_INFO("[UdpServer] AltHold: en=%s z=%.2f kp=%.2f kd=%.2f max_vz=%.2f invz=%s",
-			alt_hold_enable ? "true":"false", alt_target_z, kp_z, kd_z, max_z_vel, invert_z_sign ? "true":"false");
+	// ROS_INFO("[UdpServer] AltHold: en=%s z=%.2f kp=%.2f kd=%.2f max_vz=%.2f invz=%s",
+	// 		alt_hold_enable ? "true":"false", alt_target_z, kp_z, kd_z, max_z_vel, invert_z_sign ? "true":"false");
+
+	// vx override params (private ns: ~vx_override/...)
+	nh_priv.param("vx_override/enable", vx_override_enable, false);
+	nh_priv.param("vx_override/value",  vx_override_value,  0.05);
+	ROS_INFO("[UdpServer] vx_override: en=%s vx=%.3f",
+			vx_override_enable ? "true":"false", vx_override_value);
+
+	// dataset logger toggle service
+	dataset_toggle_srv = nh.serviceClient<std_srvs::SetBool>("/dataset_logger/toggle");
 
 	// Initial publisher
 	manual_control_pub = nh.advertise<mavros_msgs::ManualControl>("mavros/manual_control/send", 1);

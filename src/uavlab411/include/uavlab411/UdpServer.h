@@ -41,9 +41,12 @@ using std::string;
 #define UAVLINK_MSG_ID_POSITION_FEEDBACK 9
 #define UAVLINK_CMD_POSITION_CONTROL_MODE 27
 
+// Setup sampling data for AI training
+#define UAVLINK_CMD_TRAIN_TOGGLE 29   // param1: 1 enable, 0 disable
+#define UAVLINK_CMD_VX_OVERRIDE 30    // param1: 1 enable, 0 disable; param2: value (m/s)
+
 // RCIn - POSCTL, ALTCTL
 // #define UAVLINK_MSG_ID_RC_CHANNELS 11
-
 #define UAVLINK_CMD_TAKEOFF 22
 #define UAVLINK_CMD_ARM_DISARM 23
 #define UAVLINK_CMD_LAND 24
