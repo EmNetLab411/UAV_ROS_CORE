@@ -95,7 +95,7 @@ static double vx_override_value  = 0.05; // m/s
 
 // Altitude hold (minimal)
 static bool   alt_hold_enable = true;
-static double alt_target_z    = 1.0;  // m (ENU up)
+static double alt_target_z    = 0.5;  // m (ENU up)
 static double kp_z            = 1.0;
 static double kd_z            = 0.6;
 static double max_z_vel       = 0.5;  // m/s
@@ -1030,7 +1030,7 @@ int main(int argc, char **argv)
 
 	// altitude hold param
 	nh_priv.param("alt_hold/enable",   alt_hold_enable, true);
-	nh_priv.param("alt_hold/target_z", alt_target_z,    1.0);
+	nh_priv.param("alt_hold/target_z", alt_target_z,    0.5);
 	nh_priv.param("alt_hold/kp",       kp_z,            1.0);
 	nh_priv.param("alt_hold/kd",       kd_z,            0.6);
 	nh_priv.param("alt_hold/max_vz",   max_z_vel,       0.5);
