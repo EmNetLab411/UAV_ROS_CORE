@@ -178,6 +178,7 @@ void handle_cmd_takeoff(float altitude)
 {
 	uavlab411::Takeoff takeoff;
 	takeoff.request.z = altitude;
+	ROS_INFO("[ALTITUDE] alt=%.2f", altitude);
 
 	if (takeoff_srv.call(takeoff))
 	{
@@ -386,6 +387,8 @@ void handle_msg_position_control(uavlink_message_t message)
         position_cmd_msg.pose.position.y = position_msg.y;
         position_cmd_msg.pose.position.z = position_msg.z;
     }
+
+	double yaw_cmd = std::isfinite(position_msg.yaw) ? position_msg.yaw : get_current_yaw();
     
     // Convert yaw to quaternion (cách đơn giản không dùng tf2)
     // double cy = cos(position_msg.yaw * 0.5);
@@ -402,7 +405,7 @@ void handle_msg_position_control(uavlink_message_t message)
 
 	// Use tf2 to create quaternion from yaw (keep roll/pitch = 0)
     tf2::Quaternion q;
-    q.setRPY(0.0, 0.0, position_msg.yaw); // roll, pitch, yaw
+    q.setRPY(0.0, 0.0, yaw_cmd); // roll, pitch, yaw
     position_cmd_msg.pose.orientation = tf2::toMsg(q);
     
     // Publish message
