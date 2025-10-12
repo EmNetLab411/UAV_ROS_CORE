@@ -1,0 +1,20 @@
+# Named demo poses for 5-DOF arm. Angles in degrees, order must match joint_names in servos.yaml
+poses:
+  home:      [90,  90,  90,  90,  50]
+  pickup:    [80, 120,  60,  90, 100]
+  place:     [100, 70, 120, 100,  20]
+  wave1:     [90,  90,  60,  60,  50]
+  wave2:     [90,  90, 120, 120,  50]
+
+# Sequence is a list of {pose: name, hold_sec: seconds}
+sequence:
+  - {pose: home,   hold_sec: 0.8}
+  - {pose: pickup, hold_sec: 1.2}
+  - {pose: home,   hold_sec: 0.6}
+  - {pose: place,  hold_sec: 1.2}
+  - {pose: home,   hold_sec: 0.6}
+  - {pose: wave1,  hold_sec: 0.5}
+  - {pose: wave2,  hold_sec: 0.5}
+  - {pose: wave1,  hold_sec: 0.5}
+  - {pose: wave2,  hold_sec: 0.5}
+  - {pose: home,   hold_sec: 1.0}

@@ -1,0 +1,11 @@
+<launch>
+  <!-- Start controller -->
+  <include file="$(find pca9685_servo_control)/launch/pca9685_servo.launch"/>
+  <!-- Start sequence demo using named poses -->
+  <rosparam file="$(find pca9685_servo_control)/config/demo_poses.yaml" command="load" ns="pca9685_demo"/>
+  <node pkg="pca9685_servo_control"
+        type="demo_sequence.py"
+        name="pca9685_demo_sequence"
+        output="screen"
+        args="--ns /pca9685_servo --poses_ns /pca9685_demo --repeat 2 --hold_scale 1.0" />
+</launch>

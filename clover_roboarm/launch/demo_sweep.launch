@@ -1,0 +1,10 @@
+<launch>
+  <!-- Start controller -->
+  <include file="$(find pca9685_servo_control)/launch/pca9685_servo.launch"/>
+  <!-- Start sweep demo after a short delay -->
+  <node pkg="pca9685_servo_control"
+        type="demo_sweep.py"
+        name="pca9685_demo_sweep"
+        output="screen"
+        args="--ns /pca9685_servo --min 30 --max 150 --step 10 --dwell 0.25" />
+</launch>

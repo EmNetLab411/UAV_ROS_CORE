@@ -1,0 +1,18 @@
+<launch>
+  <!-- Run with lower CPU priority to avoid impacting flight stack -->
+  <node pkg="pca9685_servo_control"
+        type="servo_controller_node.py"
+        name="pca9685_servo_controller"
+        output="screen"
+        respawn="true"
+        launch-prefix="nice -n 10">
+    <rosparam file="$(find pca9685_servo_control)/config/servos.yaml" command="load"/>
+    <!-- Namespace everything to avoid topic collisions -->
+    <remap from="joint_states" to="/pca9685_servo/joint_states"/>
+    <remap from="set_angle"   to="/pca9685_servo/set_angle"/>
+    <remap from="enable"      to="/pca9685_servo/enable"/>
+    <remap from="disable"     to="/pca9685_servo/disable"/>
+    <remap from="home"        to="/pca9685_servo/home"/>
+    <remap from="command"     to="/pca9685_servo/command"/>
+  </node>
+</launch>
