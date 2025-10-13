@@ -24,8 +24,6 @@ std::vector<uavlink_msg_waypoint_t> waypoint_GPS_vector;
 bool check_busy;
 bool check_take_off;
 
-
-
 // circle control
 std::atomic<bool> circle_active(false);
 std::thread circle_thread;
@@ -390,19 +388,6 @@ void handle_msg_position_control(uavlink_message_t message)
 
 	double yaw_cmd = std::isfinite(position_msg.yaw) ? position_msg.yaw : get_current_yaw();
     
-    // Convert yaw to quaternion (cách đơn giản không dùng tf2)
-    // double cy = cos(position_msg.yaw * 0.5);
-    // double sy = sin(position_msg.yaw * 0.5);
-    // double cp = cos(0);
-    // double sp = sin(0);
-    // double cr = cos(0);
-    // double sr = sin(0);
-    
-    // position_cmd_msg.pose.orientation.w = cy * cp * cr + sy * sp * sr;
-    // position_cmd_msg.pose.orientation.x = cy * cp * sr - sy * sp * cr;
-    // position_cmd_msg.pose.orientation.y = sy * cp * sr + cy * sp * cr;
-    // position_cmd_msg.pose.orientation.z = sy * cp * cr - cy * sp * sr;
-
 	// Use tf2 to create quaternion from yaw (keep roll/pitch = 0)
     tf2::Quaternion q;
     q.setRPY(0.0, 0.0, yaw_cmd); // roll, pitch, yaw
@@ -453,8 +438,8 @@ void handle_msg_velocity_control(uavlink_message_t message)
     uavlink_velocity_control_t vc;
     uavlink_velocity_control_decode(&message, &vc);
 
-	// ROS_INFO("[VELOCITY] vx=%.2f vy=%.2f vz=%.2f yaw_rate=%.2f frame=%d",
-    //          vc.vx, vc.vy, vc.vz, vc.yaw_rate, vc.frame);
+	ROS_INFO("[VELOCITY] vx=%.2f vy=%.2f vz=%.2f yaw_rate=%.2f frame=%d",
+             vc.vx, vc.vy, vc.vz, vc.yaw_rate, vc.frame);
 
     geometry_msgs::TwistStamped ts;
     ts.header.stamp = ros::Time::now();
@@ -478,7 +463,7 @@ void handle_msg_velocity_control(uavlink_message_t message)
 
     ts.header.frame_id = "map"; // publish trong ENU local frame
 
-	// Apply Vx override if enabled (for training) - Y tien, x ngang
+	// Apply Vx override if enabled (for training)
 	if (vx_override_enable) 
 	{
 		vx_enu = vx_override_value;
@@ -516,9 +501,6 @@ static void circle_runner(double radius, double altitude, double speed)
         ros::Duration(0.05).sleep();
     }
 
-    // center point: use last known uavpose_msg; if zero fallback to local_position.pose
-    // double cx = uavpose_msg.pose.position.x;
-    // double cy = uavpose_msg.pose.position.y;
 	double cx = local_x;
 	double cy = local_y;
 	

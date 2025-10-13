@@ -175,7 +175,7 @@ class ServoControllerNode:
         counts = self.angle_to_count(angle_deg)
         self.pca.set_pwm(ch, 0, counts)
 
-    def handle_set_angle(self, req: SetAngle.Request) -> SetAngleResponse:
+    def handle_set_angle(self, req):
         try:
             idx = self.channels.index(req.channel)
         except ValueError:
@@ -199,7 +199,7 @@ class ServoControllerNode:
             rospy.logerr("I2C error on set_angle: %s", str(e))
             return SetAngleResponse(False, f"I2C error: {str(e)}")
 
-    def handle_joint_command(self, msg: JointState):
+    def handle_joint_command(self, msg):
         now = rospy.get_time()
         changed = False
         if msg.name and len(msg.name) == len(msg.position):
@@ -221,7 +221,7 @@ class ServoControllerNode:
             rospy.logwarn("Enabling outputs due to JointState command")
             self.enabled = True
 
-    def handle_enable(self, _req: Trigger.Request) -> TriggerResponse:
+    def handle_enable(self, req):
         try:
             self._apply_all(self.current_deg)
             self.enabled = True
@@ -230,7 +230,7 @@ class ServoControllerNode:
             rospy.logerr("Enable failed: %s", str(e))
             return TriggerResponse(success=False, message=f"Enable failed: {str(e)}")
 
-    def handle_disable(self, _req: Trigger.Request) -> TriggerResponse:
+    def handle_disable(self, req):
         try:
             self._apply_behavior_all("off")
             self.enabled = False
@@ -239,7 +239,7 @@ class ServoControllerNode:
             rospy.logerr("Disable failed: %s", str(e))
             return TriggerResponse(success=False, message=f"Disable failed: {str(e)}")
 
-    def handle_home(self, _req: Trigger.Request) -> TriggerResponse:
+    def handle_home(self, req):
         try:
             for idx in range(self.num_joints):
                 self._move_to_neutral(idx)
