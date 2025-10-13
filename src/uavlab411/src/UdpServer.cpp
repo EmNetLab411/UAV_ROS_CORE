@@ -120,7 +120,7 @@ static inline double compute_vz_hold() {
 }
 
 // --------------------------------ROBOTIC ARM------------------------------- //
-void UdpServer::initServoBridge(ros::NodeHandle& nh) {
+void initServoBridge(ros::NodeHandle& nh) {
   // Chuẩn bị ROS service client cho servo
   if (!set_angle_cli_) {
     set_angle_cli_ = nh.serviceClient<pca9685_servo_control::SetAngle>("/pca9685_servo/set_angle");
@@ -660,8 +660,8 @@ void handle_cmd_circle(bool start)
 static inline void uavlink_servo_channels_decode(const uavlink_message_t *msg, uavlink_servo_channels_t *sc)
 {
     if (!msg || !sc) return;
-    uint8_t len = msg->len < UAVLINK_MSG_ID_SERVO_CHANNELS_LEN ? msg->len : UAVLINK_MSG_ID_SERVO_CHANNELS_LEN;
-    memset(sc, 0, UAVLINK_MSG_ID_SERVO_CHANNELS_LEN);
+    uint8_t len = msg->len < UAVLINK_MSG_ID_SERVO_CONTROL_LEN ? msg->len : UAVLINK_MSG_ID_SERVO_CONTROL_LEN;
+    memset(sc, 0, UAVLINK_MSG_ID_SERVO_CONTROL_LEN);
     memcpy(sc, _MAV_PAYLOAD(msg), len);
 }
 
@@ -1120,7 +1120,7 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, "UdpSocket");
 	ros::NodeHandle nh, nh_priv("~");
 	//servo control
-	server.initServoBridge(nh);
+	initServoBridge(nh);
 
 	// param
 	nh_priv.param("port", port, 12345);
