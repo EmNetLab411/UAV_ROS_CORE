@@ -657,13 +657,6 @@ void handle_cmd_circle(bool start)
 }
 
 /* ************************* Function Servo Control ***********************************/
-static inline void uavlink_servo_channels_decode(const uavlink_message_t *msg, uavlink_servo_channels_t *sc)
-{
-    if (!msg || !sc) return;
-    uint8_t len = msg->len < UAVLINK_MSG_ID_SERVO_CONTROL_LEN ? msg->len : UAVLINK_MSG_ID_SERVO_CONTROL_LEN;
-    memset(sc, 0, UAVLINK_MSG_ID_SERVO_CONTROL_LEN);
-    memcpy(sc, _MAV_PAYLOAD(msg), len);
-}
 
 void handle_msg_servo_channels(uavlink_message_t message)
 {
