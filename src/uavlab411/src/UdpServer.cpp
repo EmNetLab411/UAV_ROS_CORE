@@ -12,6 +12,8 @@ void handle_cmd_circle(bool start);
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <std_srvs/SetBool.h>
 
+// Robotic Arm library
+#include <pca9685_servo_control/SetAngle.h>
 
 /* ---- Global variable ---- */
 // Socket server
@@ -38,6 +40,10 @@ ros::Duration state_timeout;
 
 // ROS Service
 ros::ServiceClient takeoff_srv, nav_to_waypoint_srv, land_srv, nav_to_GPS_srv;
+
+// ROBOTIC ARM
+ros::ServiceClient set_angle_cli_;  // client gọi /pca9685_servo/set_angle
+void initServoBridge(ros::NodeHandle& nh);
 
 // Training data record 
 ros::ServiceClient dataset_toggle_srv; // for /dataset_logger/toggle
@@ -112,6 +118,64 @@ static inline double compute_vz_hold() {
     if (invert_z_sign) vz_cmd = -vz_cmd;
     return clampd(vz_cmd, -max_z_vel, max_z_vel);
 }
+
+// --------------------------------ROBOTIC ARM------------------------------- //
+void UdpServer::initServoBridge(ros::NodeHandle& nh) {
+  // Chuẩn bị ROS service client cho servo
+  if (!set_angle_cli_) {
+    set_angle_cli_ = nh.serviceClient<pca9685_servo_control::SetAngle>("/pca9685_servo/set_angle");
+  }
+  ROS_INFO("[UdpServer] Servo bridge ready: service [/pca9685_servo/set_angle]");
+}
+
+void handle_msg_servo_control(const uavlink_message_t& msg) {
+  // Giả định payload do client gửi: [uint8 channel][float32 angle_deg] (little-endian)
+  // CHỌN 1 TRONG 2 CÁCH DECODE DƯỚI (tùy bạn đã có generator decode hay chưa):
+
+  // CÁCH A (nếu bạn đã có mã tạo sẵn giống các message khác):
+  // struct uavlink_servo_control_t { uint8_t channel; float angle_deg; };
+  // uavlink_servo_control_t pkt{};
+  // uavlink_msg_servo_control_decode(&msg, &pkt);
+  // uint8_t channel = pkt.channel;
+  // float angle_deg = pkt.angle_deg;
+
+  // CÁCH B (fallback: decode thủ công theo định dạng nêu trên)
+  uint8_t channel = 0;
+  float angle_deg = 0.0f;
+  // Lưu ý: thay 'msg.payload' và 'msg.len' theo tên trường thực tế trong uavlink_message_t của bạn.
+  // Dưới đây là ví dụ thông dụng; chỉnh lại nếu khác.
+
+  const uint8_t* p = reinterpret_cast<const uint8_t*>(msg.payload);
+  if (msg.len >= (int)(sizeof(uint8_t) + sizeof(float))) {
+    channel = p[0];
+    static_assert(sizeof(float) == 4, "float must be 32-bit");
+    std::memcpy(&angle_deg, p + 1, sizeof(float));
+  } else {
+    ROS_WARN("SERVO_CONTROL payload too short: len=%d", msg.len);
+    return;
+  }
+
+  // Gọi ROS service /pca9685_servo/set_angle
+  if (!set_angle_cli_.exists()) {
+    set_angle_cli_.waitForExistence(ros::Duration(0.5));
+  }
+
+  pca9685_servo_control::SetAngle srv;
+  srv.request.channel   = channel;
+  srv.request.angle_deg = angle_deg;
+
+  if (set_angle_cli_.call(srv)) {
+    if (srv.response.success) {
+      ROS_INFO("Servo ch=%u -> %.1f deg OK: %s", channel, angle_deg, srv.response.message.c_str());
+    } else {
+      ROS_WARN("Servo ch=%u -> %.1f deg FAILED: %s", channel, angle_deg, srv.response.message.c_str());
+    }
+  } else {
+    ROS_ERROR("Failed calling /pca9685_servo/set_angle (ch=%u, deg=%.1f)", channel, angle_deg);
+  }
+}
+
+// ----------------------------------------------------------------------------- //
 
 void handle_cmd_set_mode(int mode)
 {
@@ -592,6 +656,47 @@ void handle_cmd_circle(bool start)
     }
 }
 
+/* ************************* Function Servo Control ***********************************/
+static inline void uavlink_servo_channels_decode(const uavlink_message_t *msg, uavlink_servo_channels_t *sc)
+{
+    if (!msg || !sc) return;
+    uint8_t len = msg->len < UAVLINK_MSG_ID_SERVO_CHANNELS_LEN ? msg->len : UAVLINK_MSG_ID_SERVO_CHANNELS_LEN;
+    memset(sc, 0, UAVLINK_MSG_ID_SERVO_CHANNELS_LEN);
+    memcpy(sc, _MAV_PAYLOAD(msg), len);
+}
+
+void handle_msg_servo_channels(uavlink_message_t message)
+{
+    uavlink_servo_channels_t sc;
+    uavlink_servo_channels_decode(&message, &sc);
+
+    // Đảm bảo service client sẵn sàng (đã init ở initServoBridge)
+    if (!set_angle_cli_.exists()) {
+        set_angle_cli_.waitForExistence(ros::Duration(0.5));
+    }
+
+    // Gọi lần lượt kênh 0..4 với góc (độ)
+    const float vals[5] = { sc.ch0, sc.ch1, sc.ch2, sc.ch3, sc.ch4 };
+    for (uint8_t ch = 0; ch < 5; ++ch)
+    {
+        pca9685_servo_control::SetAngle srv;
+        srv.request.channel   = ch;
+        srv.request.angle_deg = vals[ch];
+
+		ROS_INFO("Setting servo ch=%u to %.1f deg", ch, vals[ch]);
+
+        if (set_angle_cli_.call(srv)) {
+            if (srv.response.success) {
+                ROS_INFO("Servo ch=%u -> %.1f deg OK: %s", ch, vals[ch], srv.response.message.c_str());
+            } else {
+                ROS_WARN("Servo ch=%u -> %.1f deg FAILED: %s", ch, vals[ch], srv.response.message.c_str());
+            }
+        } else {
+            ROS_ERROR("Failed calling /pca9685_servo/set_angle (ch=%u, deg=%.1f)", ch, vals[ch]);
+        }
+    }
+}
+
 /* ************************* Function RC Control ***********************************/
 
 // decode implementation for RC channels (placed in .cpp so uavlink types/macros are available)
@@ -958,6 +1063,11 @@ void readingSocketThread()
         		handle_msg_position_control(message);
         		break;
 
+			case UAVLINK_MSG_ID_SERVO_CONTROL:
+				// handle_msg_servo_control(message); not used
+				handle_msg_servo_channels(message);
+				break;
+
 			case UAVLINK_MSG_ID_RC_CHANNELS: // message RC
                 handle_msg_rc_channels(message);
                 break;
@@ -1009,6 +1119,8 @@ int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "UdpSocket");
 	ros::NodeHandle nh, nh_priv("~");
+	//servo control
+	server.initServoBridge(nh);
 
 	// param
 	nh_priv.param("port", port, 12345);

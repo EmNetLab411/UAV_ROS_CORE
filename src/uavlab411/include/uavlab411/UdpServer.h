@@ -5,6 +5,10 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <thread>
+
+// Robotic Arm library
+#include <pca9685_servo_control/SetAngle.h>
+
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/BatteryState.h>
@@ -114,9 +118,21 @@ typedef struct __uavlink_rc_channels_t
 } uavlink_rc_channels_t;
 #define UAVLINK_MSG_ID_RC_CHANNELS 11
 #define UAVLINK_MSG_ID_RC_CHANNELS_LEN (sizeof(uavlink_rc_channels_t))
-
-
 // End RC channels mapping
+
+// Function servo control
+// Servo channels (5 giá trị float32 độ cho kênh 0..4)
+typedef struct __uavlink_servo_channels_t
+{
+    float ch0;
+    float ch1;
+    float ch2;
+    float ch3;
+    float ch4;
+} uavlink_servo_channels_t;
+
+#define UAVLINK_MSG_ID_SERVO_CONTROL 13
+#define UAVLINK_MSG_ID_SERVO_CONTROL_LEN (sizeof(uavlink_servo_channels_t))
 
 void readingSocketThread();
 void writeSocketMessage(char *, int);
@@ -538,3 +554,5 @@ void handleImu(const sensor_msgs::Imu::ConstPtr& msg);
 // Function handle velocity control
 void handle_msg_velocity_control(uavlink_message_t message);
 
+// Function handle servo control
+void handle_msg_servo_control(const uavlink_message_t& msg);
