@@ -128,52 +128,52 @@ void initServoBridge(ros::NodeHandle& nh) {
   ROS_INFO("[UdpServer] Servo bridge ready: service [/pca9685_servo/set_angle]");
 }
 
-void handle_msg_servo_control(const uavlink_message_t& msg) {
-  // Giả định payload do client gửi: [uint8 channel][float32 angle_deg] (little-endian)
-  // CHỌN 1 TRONG 2 CÁCH DECODE DƯỚI (tùy bạn đã có generator decode hay chưa):
+// void handle_msg_servo_control(const uavlink_message_t& msg) {
+//   // Giả định payload do client gửi: [uint8 channel][float32 angle_deg] (little-endian)
+//   // CHỌN 1 TRONG 2 CÁCH DECODE DƯỚI (tùy bạn đã có generator decode hay chưa):
 
-  // CÁCH A (nếu bạn đã có mã tạo sẵn giống các message khác):
-  // struct uavlink_servo_control_t { uint8_t channel; float angle_deg; };
-  // uavlink_servo_control_t pkt{};
-  // uavlink_msg_servo_control_decode(&msg, &pkt);
-  // uint8_t channel = pkt.channel;
-  // float angle_deg = pkt.angle_deg;
+//   // CÁCH A (nếu bạn đã có mã tạo sẵn giống các message khác):
+//   // struct uavlink_servo_control_t { uint8_t channel; float angle_deg; };
+//   // uavlink_servo_control_t pkt{};
+//   // uavlink_msg_servo_control_decode(&msg, &pkt);
+//   // uint8_t channel = pkt.channel;
+//   // float angle_deg = pkt.angle_deg;
 
-  // CÁCH B (fallback: decode thủ công theo định dạng nêu trên)
-  uint8_t channel = 0;
-  float angle_deg = 0.0f;
-  // Lưu ý: thay 'msg.payload' và 'msg.len' theo tên trường thực tế trong uavlink_message_t của bạn.
-  // Dưới đây là ví dụ thông dụng; chỉnh lại nếu khác.
+//   // CÁCH B (fallback: decode thủ công theo định dạng nêu trên)
+//   uint8_t channel = 0;
+//   float angle_deg = 0.0f;
+//   // Lưu ý: thay 'msg.payload' và 'msg.len' theo tên trường thực tế trong uavlink_message_t của bạn.
+//   // Dưới đây là ví dụ thông dụng; chỉnh lại nếu khác.
 
-  const uint8_t* p = reinterpret_cast<const uint8_t*>(msg.payload);
-  if (msg.len >= (int)(sizeof(uint8_t) + sizeof(float))) {
-    channel = p[0];
-    static_assert(sizeof(float) == 4, "float must be 32-bit");
-    std::memcpy(&angle_deg, p + 1, sizeof(float));
-  } else {
-    ROS_WARN("SERVO_CONTROL payload too short: len=%d", msg.len);
-    return;
-  }
+//   const uint8_t* p = reinterpret_cast<const uint8_t*>(msg.payload);
+//   if (msg.len >= (int)(sizeof(uint8_t) + sizeof(float))) {
+//     channel = p[0];
+//     static_assert(sizeof(float) == 4, "float must be 32-bit");
+//     std::memcpy(&angle_deg, p + 1, sizeof(float));
+//   } else {
+//     ROS_WARN("SERVO_CONTROL payload too short: len=%d", msg.len);
+//     return;
+//   }
 
-  // Gọi ROS service /pca9685_servo/set_angle
-  if (!set_angle_cli_.exists()) {
-    set_angle_cli_.waitForExistence(ros::Duration(0.5));
-  }
+//   // Gọi ROS service /pca9685_servo/set_angle
+//   if (!set_angle_cli_.exists()) {
+//     set_angle_cli_.waitForExistence(ros::Duration(0.5));
+//   }
 
-  pca9685_servo_control::SetAngle srv;
-  srv.request.channel   = channel;
-  srv.request.angle_deg = angle_deg;
+//   pca9685_servo_control::SetAngle srv;
+//   srv.request.channel   = channel;
+//   srv.request.angle_deg = angle_deg;
 
-  if (set_angle_cli_.call(srv)) {
-    if (srv.response.success) {
-      ROS_INFO("Servo ch=%u -> %.1f deg OK: %s", channel, angle_deg, srv.response.message.c_str());
-    } else {
-      ROS_WARN("Servo ch=%u -> %.1f deg FAILED: %s", channel, angle_deg, srv.response.message.c_str());
-    }
-  } else {
-    ROS_ERROR("Failed calling /pca9685_servo/set_angle (ch=%u, deg=%.1f)", channel, angle_deg);
-  }
-}
+//   if (set_angle_cli_.call(srv)) {
+//     if (srv.response.success) {
+//       ROS_INFO("Servo ch=%u -> %.1f deg OK: %s", channel, angle_deg, srv.response.message.c_str());
+//     } else {
+//       ROS_WARN("Servo ch=%u -> %.1f deg FAILED: %s", channel, angle_deg, srv.response.message.c_str());
+//     }
+//   } else {
+//     ROS_ERROR("Failed calling /pca9685_servo/set_angle (ch=%u, deg=%.1f)", channel, angle_deg);
+//   }
+// }
 
 // ----------------------------------------------------------------------------- //
 
@@ -657,6 +657,17 @@ void handle_cmd_circle(bool start)
 }
 
 /* ************************* Function Servo Control ***********************************/
+
+static inline void uavlink_servo_channels_decode(const uavlink_message_t *msg, uavlink_servo_channels_t *sc)
+{
+    // memset(sc, 0, UAVLINK_MSG_ID_SERVO_CONTROL_LEN);
+    // memcpy(sc, _MAV_PAYLOAD(msg), UAVLINK_MSG_ID_SERVO_CONTROL_LEN);
+
+	if (!msg || !sc) return;
+    uint8_t len = msg->len < UAVLINK_MSG_ID_SERVO_CONTROL_LEN ? msg->len : UAVLINK_MSG_ID_SERVO_CONTROL_LEN;
+    memset(sc, 0, UAVLINK_MSG_ID_SERVO_CONTROL_LEN);
+    memcpy(sc, _MAV_PAYLOAD(msg), len);
+}
 
 void handle_msg_servo_channels(uavlink_message_t message)
 {

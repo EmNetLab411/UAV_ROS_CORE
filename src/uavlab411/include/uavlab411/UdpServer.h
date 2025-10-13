@@ -361,16 +361,7 @@ static inline void uavlink_position_control_decode(const uavlink_message_t *msg,
 }
 
 // Servo Control decode
-static inline void uavlink_servo_channels_decode(const uavlink_message_t *msg, uavlink_servo_channels_t *sc)
-{
-    memset(sc, 0, UAVLINK_MSG_ID_SERVO_CONTROL_LEN);
-    memcpy(sc, _MAV_PAYLOAD(msg), UAVLINK_MSG_ID_SERVO_CONTROL_LEN);
 
-	// if (!msg || !sc) return;
-    // uint8_t len = msg->len < UAVLINK_MSG_ID_SERVO_CONTROL_LEN ? msg->len : UAVLINK_MSG_ID_SERVO_CONTROL_LEN;
-    // memset(sc, 0, UAVLINK_MSG_ID_SERVO_CONTROL_LEN);
-    // memcpy(sc, _MAV_PAYLOAD(msg), len);
-}
     
 // Position Feedback encode
 static inline uint16_t uavlink_position_feedback_encode(uavlink_message_t *msg, const uavlink_position_feedback_t *position_feedback)
